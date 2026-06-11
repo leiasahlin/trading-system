@@ -1,4 +1,4 @@
-package com.qullamaggie.trading_system;
+package com.qullamaggie.tradingsystem;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
