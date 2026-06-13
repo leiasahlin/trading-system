@@ -45,6 +45,9 @@ public class Indicator {
     @Column(name = "adr_20", precision = 8, scale = 4)
     private BigDecimal adr20;
 
+    @Column(name = "atr_20", precision = 8, scale = 4)
+    private BigDecimal atr20;
+
     @Column(name = "volume_avg_20")
     private Long volumeAvg20;
 
