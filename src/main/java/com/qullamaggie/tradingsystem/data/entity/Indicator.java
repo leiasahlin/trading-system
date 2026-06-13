@@ -7,6 +7,16 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+
+/**
+ * Calculated technical indicators for a stock on a given date,
+ * derived from historical DailyPrice data. Includes moving averages
+ * (MA10/20/50), average daily range (ADR20), average volume, and
+ * prior price movement - used by the scanner to identify setups.
+ *
+ * @author Leia Haglund Sahlin, leia.haglund05@gmail.com
+ * @version v1.0, 2026-06-13
+ */
 @Entity
 @Getter @Setter
 @Table(name = "indicators",

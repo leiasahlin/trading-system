@@ -6,6 +6,15 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Represents an actual or planned trade position: entry price,
+ * stop-loss, position size and current status. Tracks the full
+ * lifecycle of a trade from open to close, including realized
+ * profit/loss (pnl).
+ *
+ * @author Leia Haglund Sahlin, leia.haglund05@gmail.com
+ * @version v1.0, 2026-06-13
+ */
 @Entity
 @Getter @Setter
 @Table(name = "positions")

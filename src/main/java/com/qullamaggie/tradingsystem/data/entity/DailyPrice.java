@@ -7,6 +7,14 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+/**
+ * Daily OHLCV (Open, High, Low, Close, Volume) data for a stock.
+ * Serves as the raw price data used to calculate technical indicators.
+ * One row per stock per trading day.
+ *
+ * @author Leia Haglund Sahlin, leia.haglund05@gmail.com
+ * @version v1.0, 2026-06-13
+ */
 @Entity
 @Getter @Setter
 @Table(name = "daily_prices",

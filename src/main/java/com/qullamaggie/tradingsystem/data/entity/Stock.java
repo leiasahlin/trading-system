@@ -6,6 +6,14 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * Represents a single stock/equity tracked by the system.
+ * Acts as the central reference point for daily prices, indicators,
+ * scan results, positions and alerts.
+ *
+ * @author Leia Haglund Sahlin, leia.haglund05@gmail.com
+ * @version v1.0, 2026-06-13
+ */
 @Entity
 @Table(name = "stocks")
 @Getter @Setter

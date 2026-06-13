@@ -7,6 +7,14 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Represents a match found by the scanner - a stock that met the
+ * criteria for a specific setup type (breakout, episodic pivot,
+ * or parabolic) at a given point in time.
+ *
+ * @author Leia Haglund Sahlin, leia.haglund05@gmail.com
+ * @version v1.0, 2026-06-13
+ */
 @Entity
 @Getter @Setter
 @Table(name = "scan_results")
