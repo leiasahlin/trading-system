@@ -1,6 +1,7 @@
 package com.qullamaggie.tradingsystem.indicators;
 
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
+import org.jspecify.annotations.NonNull;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -72,5 +73,19 @@ public class IndicatorCalculator {
         }
         BigDecimal atr = sum.divide(amount, 4, RoundingMode.HALF_UP);
         return atr;
+    }
+
+    public Long calculateAverageVolume(@NonNull List<Long> volumes) {
+        if (volumes.isEmpty()) {
+            return null;
+        }
+
+        Long sum = 0L;
+
+        for (Long volume : volumes) {
+            sum += volume;
+        }
+
+        return sum / volumes.size();
     }
 }

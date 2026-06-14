@@ -97,4 +97,23 @@ public class IndicatorCalculatorTest {
 
         assertNull(calculator.calculateATR(prices));
     }
+
+    @Test
+    void calculateAverageVolume_withThreeValues_returnsAverage() {
+        List<Long> volumes = List.of(1000L, 2000L, 3000L);
+
+        Long result = calculator.calculateAverageVolume(volumes);
+
+        // (1000 + 2000 + 3000) / 3 = 2000
+        assertEquals(2000L, result);
+    }
+
+    @Test
+    void calculateAverageVolume_withEmptyList_returnsNull() {
+        List<Long> volumes = List.of();
+
+        Long result = calculator.calculateAverageVolume(volumes);
+
+        assertNull(result);
+    }
 }
