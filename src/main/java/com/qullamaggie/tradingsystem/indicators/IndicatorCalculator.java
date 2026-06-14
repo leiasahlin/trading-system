@@ -48,4 +48,29 @@ public class IndicatorCalculator {
 
         return adr.multiply(BigDecimal.valueOf(100));
     }
+
+    public BigDecimal calculateATR(List<DailyPrice> allPrices) {
+        if (allPrices.size() < 2) {
+            return null;
+        }
+        BigDecimal sum = BigDecimal.ZERO;
+        BigDecimal amount = BigDecimal.ZERO;
+
+        for (int i = 1; i < allPrices.size(); i++) {
+            BigDecimal high = allPrices.get(i).getHigh();
+            BigDecimal low = allPrices.get(i).getLow();
+            BigDecimal yesterdayClose = allPrices.get(i - 1).getClose();
+
+            BigDecimal dailyRange = high.subtract(low);
+            BigDecimal gapUp = high.subtract(yesterdayClose);
+            BigDecimal gapDown = yesterdayClose.subtract(low);
+
+            BigDecimal trueRange = dailyRange.max(gapUp).max(gapDown);
+
+            sum = sum.add(trueRange);
+            amount = amount.add(BigDecimal.ONE);
+        }
+        BigDecimal atr = sum.divide(amount, 4, RoundingMode.HALF_UP);
+        return atr;
+    }
 }

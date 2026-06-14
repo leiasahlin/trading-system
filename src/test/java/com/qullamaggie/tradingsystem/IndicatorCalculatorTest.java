@@ -75,4 +75,26 @@ public class IndicatorCalculatorTest {
 
         assertNull(calculator.calculateADR(prices));
     }
+
+    @Test
+    public void calculateATR_withGapUp_usesGapInTrueRange() {
+        List<DailyPrice> prices = List.of(
+                price("0", "0", "100"),      // Day 0: Only close is used
+                price("103", "98", "102"),   // Day 1: no gap
+                price("112", "110", "111")   // Day 2: Gap
+        );
+
+        BigDecimal result = calculator.calculateATR(prices);
+
+        assertEquals(new BigDecimal("7.5000"), result);
+    }
+
+    @Test
+    void calculateATR_withTooFewDays_returnsNull() {
+        List<DailyPrice> prices = List.of(
+                price("110", "100", "105")
+        );
+
+        assertNull(calculator.calculateATR(prices));
+    }
 }
