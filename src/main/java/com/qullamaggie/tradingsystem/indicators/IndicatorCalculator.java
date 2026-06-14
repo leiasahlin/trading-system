@@ -88,4 +88,26 @@ public class IndicatorCalculator {
 
         return sum / volumes.size();
     }
+
+    public BigDecimal findPriorMove(List<DailyPrice> prices) {
+        if (prices.isEmpty()) {
+            return null;
+        }
+
+        BigDecimal lowestPrice = prices.getFirst().getClose();
+        BigDecimal biggestMove = BigDecimal.ZERO;
+
+        for (DailyPrice price : prices) {
+            BigDecimal close = price.getClose();
+
+            BigDecimal rise = close.subtract(lowestPrice).divide(lowestPrice, 4, RoundingMode.HALF_UP);
+            if (rise.compareTo(biggestMove) > 0) {
+                biggestMove = rise;
+            }
+            if (close.compareTo(lowestPrice) < 0) {
+                lowestPrice = close;
+            }
+        }
+        return biggestMove.multiply(BigDecimal.valueOf(100));
+    }
 }

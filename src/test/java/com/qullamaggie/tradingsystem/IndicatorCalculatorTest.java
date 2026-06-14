@@ -116,4 +116,36 @@ public class IndicatorCalculatorTest {
 
         assertNull(result);
     }
+
+    @Test
+    void findPriorMove_withRisingPrices_returnsPercentageGain() {
+        List<DailyPrice> prices = List.of(
+                price("0", "0", "50"),   // low point
+                price("0", "0", "60"),
+                price("0", "0", "80")    // highest after low point
+        );
+
+        BigDecimal result = calculator.findPriorMove(prices);
+
+        // (80 - 50) / 50 = 0,60 → 60%
+        assertEquals(new BigDecimal("60.0000"), result);
+    }
+
+    @Test
+    void findPriorMove_withFallingPrices_returnsZero() {
+        List<DailyPrice> prices = List.of(
+                price("0", "0", "80"),   // highest but first
+                price("0", "0", "65"),
+                price("0", "0", "50")    // lowest but last
+        );
+
+        BigDecimal result = calculator.findPriorMove(prices);
+
+        assertEquals(0, result.compareTo(BigDecimal.ZERO));
+    }
+
+    @Test
+    void findPriorMove_withEmptyList_returnsNull() {
+        assertNull(calculator.findPriorMove(List.of()));
+    }
 }
