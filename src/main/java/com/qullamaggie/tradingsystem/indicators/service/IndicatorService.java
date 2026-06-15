@@ -1,0 +1,85 @@
+package com.qullamaggie.tradingsystem.indicators.service;
+
+import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
+import com.qullamaggie.tradingsystem.data.entity.Indicator;
+import com.qullamaggie.tradingsystem.data.entity.Stock;
+import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
+import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
+import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+@Service
+public class IndicatorService {
+
+    private final DailyPriceRepository dailyPriceRepository;
+    private final IndicatorRepository indicatorRepository;
+    private final IndicatorCalculator calculator;
+
+    public IndicatorService(DailyPriceRepository dailyPriceRepository,
+                            IndicatorRepository indicatorRepository,
+                            IndicatorCalculator indicatorCalculator) {
+        this.dailyPriceRepository = dailyPriceRepository;
+        this.indicatorRepository = indicatorRepository;
+        this.calculator = indicatorCalculator;
+    }
+
+    public void calculateAndSaveIndicators(Stock stock) {
+        List<DailyPrice> prices = new ArrayList<>(dailyPriceRepository.findByStockOrderByDateDesc(stock));
+
+        // Validate enough data is used
+        if (prices.size() < 50) {
+            return;
+        }
+
+        // Oldest first in list
+        Collections.reverse(prices);
+
+        List<BigDecimal> closesMa10 = lastN(prices,10).stream().map(DailyPrice::getClose).toList();
+        List<BigDecimal> closesMa20 = lastN(prices, 20).stream().map(DailyPrice::getClose).toList();
+        List<BigDecimal> closesMa50 = lastN(prices, 50).stream().map(DailyPrice::getClose).toList();
+
+        BigDecimal ma10 = calculator.calculateMA(closesMa10);
+        BigDecimal ma20 = calculator.calculateMA(closesMa20);
+        BigDecimal ma50 = calculator.calculateMA(closesMa50);
+
+        BigDecimal adr20 = calculator.calculateADR(lastN(prices, 21));
+        BigDecimal atr20 = calculator.calculateATR(lastN(prices, 21));
+
+        List<Long> volumes20 = lastN(prices, 20).stream().map(DailyPrice :: getVolume).toList();
+        Long volumeAvg20 = calculator.calculateAverageVolume(volumes20);
+
+        BigDecimal priorMove = calculator.findPriorMove(lastN(prices, 60));
+
+        LocalDate date = prices.getLast().getDate();
+
+        Indicator indicator = indicatorRepository.findByStockAndDate(stock, date)
+                .orElseGet(() -> {
+                    Indicator newIndicator = new Indicator();
+                    newIndicator.setStock(stock);
+                    newIndicator.setDate(date);
+                    return newIndicator;
+                        });
+
+        indicator.setMa10(ma10);
+        indicator.setMa20(ma20);
+        indicator.setMa50(ma50);
+        indicator.setAdr20(adr20);
+        indicator.setAtr20(atr20);
+        indicator.setVolumeAvg20(volumeAvg20);
+        indicator.setPriorMove(priorMove);
+        indicatorRepository.save(indicator);
+    }
+
+    private List<DailyPrice> lastN(List<DailyPrice> prices, int n) {
+        if (n >= prices.size()) {
+            return prices;
+        }
+        return prices.subList(prices.size() - n, prices.size());
+    }
+}
