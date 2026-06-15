@@ -30,6 +30,7 @@ public class IndicatorService {
     }
 
     public void calculateAndSaveIndicators(Stock stock) {
+        // Fetch all the price history from repository (newst first)
         List<DailyPrice> prices = new ArrayList<>(dailyPriceRepository.findByStockOrderByDateDesc(stock));
 
         // Validate enough data is used
@@ -37,9 +38,10 @@ public class IndicatorService {
             return;
         }
 
-        // Oldest first in list
+        // reverse to oldest-first so ADR/ATR can use the previous day's close
         Collections.reverse(prices);
 
+        //Moving averages over the most recent 10,20 and 50 days
         List<BigDecimal> closesMa10 = lastN(prices,10).stream().map(DailyPrice::getClose).toList();
         List<BigDecimal> closesMa20 = lastN(prices, 20).stream().map(DailyPrice::getClose).toList();
         List<BigDecimal> closesMa50 = lastN(prices, 50).stream().map(DailyPrice::getClose).toList();
@@ -48,16 +50,21 @@ public class IndicatorService {
         BigDecimal ma20 = calculator.calculateMA(closesMa20);
         BigDecimal ma50 = calculator.calculateMA(closesMa50);
 
+        // ADR and ATR use 21 days (20 ranges + 1 for the first day's previous close)
         BigDecimal adr20 = calculator.calculateADR(lastN(prices, 21));
         BigDecimal atr20 = calculator.calculateATR(lastN(prices, 21));
 
+        // Average volume over the most recent 20 days
         List<Long> volumes20 = lastN(prices, 20).stream().map(DailyPrice :: getVolume).toList();
         Long volumeAvg20 = calculator.calculateAverageVolume(volumes20);
 
+        // Prior move over 60 trading days (3 months)
         BigDecimal priorMove = calculator.findPriorMove(lastN(prices, 60));
 
         LocalDate date = prices.getLast().getDate();
 
+        // Reuse the existing indicator row for this date if it exists, otherwise
+        // create a new one
         Indicator indicator = indicatorRepository.findByStockAndDate(stock, date)
                 .orElseGet(() -> {
                     Indicator newIndicator = new Indicator();
@@ -66,6 +73,7 @@ public class IndicatorService {
                     return newIndicator;
                         });
 
+        // Fill in all calculated values and persist
         indicator.setMa10(ma10);
         indicator.setMa20(ma20);
         indicator.setMa50(ma50);
