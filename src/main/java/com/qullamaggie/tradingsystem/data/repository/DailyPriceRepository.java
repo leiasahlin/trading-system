@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface DailyPriceRepository extends JpaRepository<DailyPrice, Long> {
     List<DailyPrice> findByStockOrderByDateDesc(Stock stock);
     Optional<DailyPrice> findByStockAndDate(Stock stock, LocalDate date);
+    Optional<DailyPrice> findTop1ByStockOrderByDateDesc(Stock stock);
 }
