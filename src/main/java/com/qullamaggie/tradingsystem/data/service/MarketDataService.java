@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.data.service;
 
+import com.qullamaggie.tradingsystem.data.dto.RefreshSummary;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import com.qullamaggie.tradingsystem.data.entity.Stock;
 import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
@@ -30,11 +31,15 @@ public class MarketDataService {
      * Refreshes price data for all tracked stocks.
      * Only fetches missing days since the last stored date.
      */
-    public void refreshAllStocks() {
+    public RefreshSummary refreshAllStocks() {
+        int sum = 0;
         List<Stock> stocks = stockRepository.findAll();
+
         for (Stock stock : stocks) {
-            refreshPrices(stock);
+            sum += refreshPrices(stock);
         }
+
+        return new RefreshSummary(stocks.size(), sum);
     }
 
     /**
@@ -45,7 +50,7 @@ public class MarketDataService {
      *
      * @param stock the stock to refresh
      */
-    public void refreshPrices(Stock stock) {
+    public int refreshPrices(Stock stock) {
         Optional<DailyPrice> latestRow = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
 
         LocalDate startDate;
@@ -60,7 +65,7 @@ public class MarketDataService {
         long daysToFetch = ChronoUnit.DAYS.between(startDate, LocalDate.now());
 
         if (daysToFetch <= 0) {
-            return;
+            return 0;
         }
 
         List<DailyPrice> prices = marketDataProvider.fetchDailyPrices(stock.getSymbol(), (int)daysToFetch);
@@ -69,5 +74,6 @@ public class MarketDataService {
             price.setStock(stock);
         }
         dailyPriceRepository.saveAll(prices);
+        return prices.size();
     }
 }
