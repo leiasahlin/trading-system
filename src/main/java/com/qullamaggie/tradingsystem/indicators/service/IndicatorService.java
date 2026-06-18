@@ -5,6 +5,7 @@ import com.qullamaggie.tradingsystem.data.entity.Indicator;
 import com.qullamaggie.tradingsystem.data.entity.Stock;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
+import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import org.springframework.stereotype.Service;
 
@@ -20,17 +21,20 @@ public class IndicatorService {
     private final DailyPriceRepository dailyPriceRepository;
     private final IndicatorRepository indicatorRepository;
     private final IndicatorCalculator calculator;
+    private final StockRepository stockRepository;
 
     public IndicatorService(DailyPriceRepository dailyPriceRepository,
                             IndicatorRepository indicatorRepository,
-                            IndicatorCalculator indicatorCalculator) {
+                            IndicatorCalculator indicatorCalculator,
+                            StockRepository stockRepository) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.calculator = indicatorCalculator;
+        this.stockRepository = stockRepository;
     }
 
     public void calculateAndSaveIndicators(Stock stock) {
-        // Fetch all the price history from repository (newst first)
+        // Fetch all the price history from repository (newest first)
         List<DailyPrice> prices = new ArrayList<>(dailyPriceRepository.findByStockOrderByDateDesc(stock));
 
         // Validate enough data is used
@@ -82,6 +86,14 @@ public class IndicatorService {
         indicator.setVolumeAvg20(volumeAvg20);
         indicator.setPriorMove(priorMove);
         indicatorRepository.save(indicator);
+    }
+
+    public void calculateForAllStocks() {
+        List<Stock> stocks = stockRepository.findAll();
+
+        for (Stock stock : stocks) {
+            calculateAndSaveIndicators(stock);
+        }
     }
 
     private List<DailyPrice> lastN(List<DailyPrice> prices, int n) {
