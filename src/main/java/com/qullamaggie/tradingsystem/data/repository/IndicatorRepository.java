@@ -9,6 +9,6 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 public interface IndicatorRepository extends JpaRepository<Indicator, Long> {
-    Optional<Indicator> findTopByStockOrderByDateDesc(Stock stock);
     Optional<Indicator> findByStockAndDate(Stock stock, LocalDate date);
+    Optional<Indicator> findTop1ByStockOrderByDateDesc(Stock stock);
 }

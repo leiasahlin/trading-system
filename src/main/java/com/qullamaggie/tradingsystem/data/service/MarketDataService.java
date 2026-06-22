@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,8 +58,7 @@ public class MarketDataService {
         if (latestRow.isEmpty()) {
             // No existing data - fetch one year back to support all indicator calculations
             startDate = LocalDate.now().minusYears(1);
-        }
-        else {
+        } else {
             startDate = latestRow.get().getDate().plusDays(1);
         }
 
@@ -68,12 +68,16 @@ public class MarketDataService {
             return 0;
         }
 
-        List<DailyPrice> prices = marketDataProvider.fetchDailyPrices(stock.getSymbol(), (int)daysToFetch);
+        List<DailyPrice> prices = marketDataProvider.fetchDailyPrices(stock.getSymbol(), (int) daysToFetch);
+        List<DailyPrice> newPrices = new ArrayList<>();
 
         for (DailyPrice price : prices) {
-            price.setStock(stock);
+            if (!price.getDate().isBefore(startDate)) {
+                price.setStock(stock);
+                newPrices.add(price);
+            }
         }
-        dailyPriceRepository.saveAll(prices);
-        return prices.size();
+        dailyPriceRepository.saveAll(newPrices);
+        return newPrices.size();
     }
 }

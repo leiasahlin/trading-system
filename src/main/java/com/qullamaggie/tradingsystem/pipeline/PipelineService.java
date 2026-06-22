@@ -1,26 +1,25 @@
 package com.qullamaggie.tradingsystem.pipeline;
 
 import com.qullamaggie.tradingsystem.data.service.MarketDataService;
-import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
-import jakarta.persistence.criteria.CriteriaBuilder;
+import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.springframework.stereotype.Service;
 
-import javax.swing.plaf.basic.BasicBorders;
-
 /**
- * Orchestrates the full data analysis pipeline:
- * fetching price data, then recalculating indicators.
+ * Runs the full pipeline for all tracked stocks:
+ * refreshes price data, recalculates indicators, then scans for setups.
  */
 @Service
 public class PipelineService {
     private final MarketDataService marketDataService;
     private final IndicatorService indicatorService;
+    private final ScanService scanService;
 
     public PipelineService(MarketDataService marketDataService,
-                           IndicatorService indicatorService) {
+                           IndicatorService indicatorService, ScanService scanService) {
         this.marketDataService = marketDataService;
         this.indicatorService = indicatorService;
+        this.scanService = scanService;
     }
 
     /**
@@ -30,5 +29,6 @@ public class PipelineService {
     public void runForAllStocks() {
         marketDataService.refreshAllStocks();
         indicatorService.calculateForAllStocks();
+        scanService.scanAllStocks();
     }
 }
