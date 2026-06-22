@@ -112,4 +112,21 @@ public class IndicatorCalculator {
         }
         return biggestMove.multiply(BigDecimal.valueOf(100));
     }
+
+    public BigDecimal calculateConsolidationRange(List<DailyPrice> prices) {
+        if (prices.isEmpty()) {
+            return null;
+        }
+        BigDecimal highest = prices.getFirst().getHigh();
+        BigDecimal lowest = prices.getFirst().getLow();
+
+        for (DailyPrice p : prices) {
+            highest = highest.max(p.getHigh());
+            lowest = lowest.min(p.getLow());
+        }
+
+        BigDecimal range = highest.subtract(lowest).divide(lowest, 4,RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+        return range;
+    }
 }

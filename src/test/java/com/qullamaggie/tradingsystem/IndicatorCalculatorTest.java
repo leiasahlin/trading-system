@@ -90,7 +90,7 @@ public class IndicatorCalculatorTest {
     }
 
     @Test
-    void calculateATR_withTooFewDays_returnsNull() {
+    public void calculateATR_withTooFewDays_returnsNull() {
         List<DailyPrice> prices = List.of(
                 price("110", "100", "105")
         );
@@ -99,7 +99,7 @@ public class IndicatorCalculatorTest {
     }
 
     @Test
-    void calculateAverageVolume_withThreeValues_returnsAverage() {
+    public void calculateAverageVolume_withThreeValues_returnsAverage() {
         List<Long> volumes = List.of(1000L, 2000L, 3000L);
 
         Long result = calculator.calculateAverageVolume(volumes);
@@ -109,7 +109,7 @@ public class IndicatorCalculatorTest {
     }
 
     @Test
-    void calculateAverageVolume_withEmptyList_returnsNull() {
+    public void calculateAverageVolume_withEmptyList_returnsNull() {
         List<Long> volumes = List.of();
 
         Long result = calculator.calculateAverageVolume(volumes);
@@ -118,7 +118,7 @@ public class IndicatorCalculatorTest {
     }
 
     @Test
-    void findPriorMove_withRisingPrices_returnsPercentageGain() {
+    public void findPriorMove_withRisingPrices_returnsPercentageGain() {
         List<DailyPrice> prices = List.of(
                 price("0", "0", "50"),   // low point
                 price("0", "0", "60"),
@@ -132,7 +132,7 @@ public class IndicatorCalculatorTest {
     }
 
     @Test
-    void findPriorMove_withFallingPrices_returnsZero() {
+    public void findPriorMove_withFallingPrices_returnsZero() {
         List<DailyPrice> prices = List.of(
                 price("0", "0", "80"),   // highest but first
                 price("0", "0", "65"),
@@ -145,7 +145,37 @@ public class IndicatorCalculatorTest {
     }
 
     @Test
-    void findPriorMove_withEmptyList_returnsNull() {
+    public void findPriorMove_withEmptyList_returnsNull() {
         assertNull(calculator.findPriorMove(List.of()));
+    }
+
+    @Test
+    public void shouldCalculateConsolidationRange() {
+        // Högsta high = 110, lägsta low = 100
+        // (110 - 100) / 100 * 100 = 10%
+        List<DailyPrice> prices = List.of(
+                priceWithHighLow("105", "102"),
+                priceWithHighLow("110", "104"),
+                priceWithHighLow("108", "100"));
+
+        BigDecimal range = calculator.calculateConsolidationRange(prices);
+
+        assertEquals(0, range.compareTo(new BigDecimal("10.0000")));
+    }
+
+    @Test
+    public void shouldReturnNullForEmptyConsolidationList() {
+        assertEquals(null, calculator.calculateConsolidationRange(List.of()));
+    }
+
+    /**
+     * Helper: builds a DailyPrice with only high and low set,
+     * since that's all calculateConsolidationRange looks at.
+     */
+    private DailyPrice priceWithHighLow(String high, String low) {
+        DailyPrice p = new DailyPrice();
+        p.setHigh(new BigDecimal(high));
+        p.setLow(new BigDecimal(low));
+        return p;
     }
 }
