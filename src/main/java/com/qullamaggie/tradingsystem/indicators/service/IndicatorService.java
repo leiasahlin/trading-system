@@ -65,6 +65,9 @@ public class IndicatorService {
         // Prior move over 60 trading days (3 months)
         BigDecimal priorMove = calculator.findPriorMove(lastN(prices, 60));
 
+        // Consolidation range over the most recent 10 trading days
+        BigDecimal consolidationRange = calculator.calculateConsolidationRange(lastN(prices, 10));
+
         LocalDate date = prices.getLast().getDate();
 
         // Reuse the existing indicator row for this date if it exists, otherwise
@@ -85,6 +88,7 @@ public class IndicatorService {
         indicator.setAtr20(atr20);
         indicator.setVolumeAvg20(volumeAvg20);
         indicator.setPriorMove(priorMove);
+        indicator.setConsolidationRange(consolidationRange);
         indicatorRepository.save(indicator);
     }
 

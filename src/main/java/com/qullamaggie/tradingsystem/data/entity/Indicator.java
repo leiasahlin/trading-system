@@ -53,4 +53,7 @@ public class Indicator {
 
     @Column(name = "prior_move", precision = 8, scale = 4)
     private BigDecimal priorMove;
+
+    @Column(name = "consolidation_range", precision = 8, scale = 4)
+    private BigDecimal consolidationRange;
 }
