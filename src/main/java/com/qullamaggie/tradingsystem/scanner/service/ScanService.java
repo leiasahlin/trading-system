@@ -26,6 +26,7 @@ public class ScanService {
     private final BigDecimal minPriorMove;
     private final BigDecimal minAdr;
     private final long minAvgVolume;
+    private final BigDecimal maxConsolidationRange;
 
     public ScanService(DailyPriceRepository dailyPriceRepository,
                        IndicatorRepository indicatorRepository,
@@ -33,6 +34,7 @@ public class ScanService {
                        StockRepository stockRepository,
                        @Value("${trading.scanner.breakout.min-prior-move}") BigDecimal minPriorMove,
                        @Value("${trading.scanner.breakout.min-adr}") BigDecimal minAdr,
+                       @Value("${trading.scanner.breakout.max-consolidation-range}") BigDecimal maxConsolidationRange,
                        @Value("${trading.scanner.breakout.min-avg-volume}") long minAvgVolume) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
@@ -41,6 +43,7 @@ public class ScanService {
         this.minAdr = minAdr;
         this.minAvgVolume = minAvgVolume;
         this.stockRepository = stockRepository;
+        this.maxConsolidationRange = maxConsolidationRange;
     }
 
     public void scanStock(Stock stock) {
@@ -61,8 +64,9 @@ public class ScanService {
         boolean hasMaStack = indicator.getMa10().compareTo(indicator.getMa20()) > 0 && // ma10 > ma20
                 indicator.getMa20().compareTo(indicator.getMa50()) > 0 && // ma20 > ma50
                 price.getClose().compareTo(indicator.getMa10()) > 0; // close > ma10
+        boolean hasTightConsolidation = indicator.getConsolidationRange().compareTo(maxConsolidationRange) <= 0;
 
-        boolean isBreakout = hasPriorMove && hasEnoughVolume && hasEnoughAdr && hasMaStack;
+        boolean isBreakout = hasPriorMove && hasEnoughVolume && hasEnoughAdr && hasMaStack && hasTightConsolidation;
 
         if (isBreakout) {
             ScanResult result = new ScanResult();
