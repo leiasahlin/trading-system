@@ -6,6 +6,7 @@ import com.qullamaggie.tradingsystem.data.entity.Stock;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
+import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import org.springframework.stereotype.Service;
 
@@ -66,7 +67,7 @@ public class IndicatorService {
         BigDecimal priorMove = calculator.findPriorMove(lastN(prices, 60));
 
         // Consolidation range over the most recent 10 trading days
-        BigDecimal consolidationRange = calculator.calculateConsolidationRange(lastN(prices, 10));
+        ConsolidationResult consolidation = calculator.calculateConsolidation(lastN(prices, 10));
 
         LocalDate date = prices.getLast().getDate();
 
@@ -88,7 +89,9 @@ public class IndicatorService {
         indicator.setAtr20(atr20);
         indicator.setVolumeAvg20(volumeAvg20);
         indicator.setPriorMove(priorMove);
-        indicator.setConsolidationRange(consolidationRange);
+        indicator.setConsolidationRange(consolidation.range());
+        indicator.setConsolidationHigh(consolidation.high());
+        indicator.setConsolidationLow(consolidation.low());
         indicatorRepository.save(indicator);
     }
 

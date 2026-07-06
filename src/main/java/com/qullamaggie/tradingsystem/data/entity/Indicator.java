@@ -56,4 +56,10 @@ public class Indicator {
 
     @Column(name = "consolidation_range", precision = 8, scale = 4)
     private BigDecimal consolidationRange;
+
+    @Column(name = "consolidation_high", precision = 12, scale = 4)
+    private BigDecimal consolidationHigh;
+
+    @Column(name = "consolidation_low", precision = 12, scale = 4)
+    private BigDecimal consolidationLow;
 }

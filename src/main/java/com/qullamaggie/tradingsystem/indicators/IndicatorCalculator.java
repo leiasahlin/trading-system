@@ -113,7 +113,7 @@ public class IndicatorCalculator {
         return biggestMove.multiply(BigDecimal.valueOf(100));
     }
 
-    public BigDecimal calculateConsolidationRange(List<DailyPrice> prices) {
+    public ConsolidationResult calculateConsolidation(List<DailyPrice> prices) {
         if (prices.isEmpty()) {
             return null;
         }
@@ -127,6 +127,7 @@ public class IndicatorCalculator {
 
         BigDecimal range = highest.subtract(lowest).divide(lowest, 4,RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
-        return range;
+
+        return new ConsolidationResult(highest, lowest, range);
     }
 }

@@ -1,6 +1,7 @@
 package com.qullamaggie.tradingsystem;
 
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
+import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import org.junit.jupiter.api.Test;
 
@@ -158,14 +159,16 @@ public class IndicatorCalculatorTest {
                 priceWithHighLow("110", "104"),
                 priceWithHighLow("108", "100"));
 
-        BigDecimal range = calculator.calculateConsolidationRange(prices);
+        ConsolidationResult result = calculator.calculateConsolidation(prices);
 
-        assertEquals(0, range.compareTo(new BigDecimal("10.0000")));
+        assertEquals(0, result.high().compareTo(new BigDecimal("110")));
+        assertEquals(0, result.low().compareTo(new BigDecimal("100")));
+        assertEquals(0, result.range().compareTo(new BigDecimal("10.0000")));
     }
 
     @Test
     public void shouldReturnNullForEmptyConsolidationList() {
-        assertEquals(null, calculator.calculateConsolidationRange(List.of()));
+        assertEquals(null, calculator.calculateConsolidation(List.of()));
     }
 
     /**
