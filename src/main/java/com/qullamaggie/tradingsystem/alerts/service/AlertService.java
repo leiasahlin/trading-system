@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -66,5 +67,15 @@ public class AlertService {
         alert.setPrice(entry);
         alert.setMessage("Breakout buy: " + shares + " shares, entry " + entry + ", stop " + stop);
         alertRepository.save(alert);
+    }
+
+    /**
+     * Creates alerts for all scan results that don't already have a pending alert.
+     */
+    public void createAlertsForAllScans() {
+        List<ScanResult> scans = scanResultRepository.findAll();
+        for (ScanResult scan : scans) {
+            createAlertFromScan(scan);
+        }
     }
 }
