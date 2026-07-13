@@ -181,4 +181,32 @@ public class IndicatorCalculatorTest {
         p.setLow(new BigDecimal(low));
         return p;
     }
+
+    @Test
+    public void shouldCalculateGapUp() {
+        BigDecimal gap = calculator.calculateGap(new BigDecimal("100"), new BigDecimal("112"));
+
+        assertEquals(0, gap.compareTo(new BigDecimal("12.0000")));
+    }
+
+    @Test
+    public void shouldReturnNullGapWhenYesterdayCloseIsZero() {
+        BigDecimal gap = calculator.calculateGap(BigDecimal.ZERO, new BigDecimal("112"));
+
+        assertEquals(null, gap);
+    }
+
+    @Test
+    public void shouldCalculateRelativeVolume() {
+        BigDecimal relVol = calculator.calculateRelativeVolume(5_000_000L, 1_000_000L);
+
+        assertEquals(0, relVol.compareTo(new BigDecimal("5.0000")));
+    }
+
+    @Test
+    public void shouldReturnNullRelativeVolumeWhenAverageIsZero() {
+        BigDecimal relVol = calculator.calculateRelativeVolume(5_000_000L, 0L);
+
+        assertEquals(null, relVol);
+    }
 }

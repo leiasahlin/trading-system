@@ -69,6 +69,13 @@ public class IndicatorService {
         // Consolidation range over the most recent 10 trading days
         ConsolidationResult consolidation = calculator.calculateConsolidation(lastN(prices, 10));
 
+        // Gap and relative volume (EP indicators) — based on the most recent day
+        DailyPrice today = prices.getLast();
+        DailyPrice yesterday = prices.get(prices.size() - 2);
+
+        BigDecimal gapPercent = calculator.calculateGap(yesterday.getClose(), today.getOpen());
+        BigDecimal relativeVolume = calculator.calculateRelativeVolume(today.getVolume(), volumeAvg20);
+
         LocalDate date = prices.getLast().getDate();
 
         // Reuse the existing indicator row for this date if it exists, otherwise
@@ -92,6 +99,8 @@ public class IndicatorService {
         indicator.setConsolidationRange(consolidation.range());
         indicator.setConsolidationHigh(consolidation.high());
         indicator.setConsolidationLow(consolidation.low());
+        indicator.setGapPercent(gapPercent);
+        indicator.setRelativeVolume(relativeVolume);
         indicatorRepository.save(indicator);
     }
 

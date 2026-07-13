@@ -130,4 +130,25 @@ public class IndicatorCalculator {
 
         return new ConsolidationResult(highest, lowest, range);
     }
+
+    public BigDecimal calculateGap(BigDecimal yesterdayClose, BigDecimal todayOpen) {
+        if (yesterdayClose.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+
+        BigDecimal gap = todayOpen.subtract(yesterdayClose).divide(yesterdayClose, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+        return gap;
+    }
+
+    public BigDecimal calculateRelativeVolume(Long todayVolume, Long averageVolume) {
+        if (averageVolume == 0) {
+            return null;
+        }
+
+        BigDecimal today = BigDecimal.valueOf(todayVolume);
+        BigDecimal average = BigDecimal.valueOf(averageVolume);
+
+        return today.divide(average, 4, RoundingMode.HALF_UP);
+    }
 }

@@ -62,4 +62,10 @@ public class Indicator {
 
     @Column(name = "consolidation_low", precision = 12, scale = 4)
     private BigDecimal consolidationLow;
+
+    @Column(name = "gap_percent", precision = 8, scale = 4)
+    private BigDecimal gapPercent;
+
+    @Column(name = "relative_volume", precision = 8, scale = 4)
+    private BigDecimal relativeVolume;
 }
