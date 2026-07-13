@@ -27,6 +27,8 @@ public class ScanService {
     private final BigDecimal minAdr;
     private final long minAvgVolume;
     private final BigDecimal maxConsolidationRange;
+    private final BigDecimal minGap;
+    private final BigDecimal minRelativeVolume;
 
     public ScanService(DailyPriceRepository dailyPriceRepository,
                        IndicatorRepository indicatorRepository,
@@ -35,7 +37,9 @@ public class ScanService {
                        @Value("${trading.scanner.breakout.min-prior-move}") BigDecimal minPriorMove,
                        @Value("${trading.scanner.breakout.min-adr}") BigDecimal minAdr,
                        @Value("${trading.scanner.breakout.max-consolidation-range}") BigDecimal maxConsolidationRange,
-                       @Value("${trading.scanner.breakout.min-avg-volume}") long minAvgVolume) {
+                       @Value("${trading.scanner.breakout.min-avg-volume}") long minAvgVolume,
+                       @Value("${trading.scanner.episodic-pivot.min-gap}") BigDecimal minGap,
+                       @Value("${trading.scanner.episodic-pivot.min-relative-volume}") BigDecimal minRelativeVolume) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.scanResultRepository = scanResultRepository;
@@ -44,6 +48,8 @@ public class ScanService {
         this.minAvgVolume = minAvgVolume;
         this.stockRepository = stockRepository;
         this.maxConsolidationRange = maxConsolidationRange;
+        this.minGap = minGap;
+        this.minRelativeVolume = minRelativeVolume;
     }
 
     public void scanStock(Stock stock) {
@@ -82,6 +88,38 @@ public class ScanService {
 
         for (Stock s : stocks) {
             scanStock(s);
+        }
+    }
+
+    public void scanStockForEpisodicPivot(Stock stock) {
+        // Collect latest indicator
+        Optional<Indicator> latestIndicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
+
+        if (latestIndicator.isEmpty()) {
+            return;
+        }
+
+        Indicator indicator = latestIndicator.get();
+
+        boolean hasEnoughGap = indicator.getGapPercent().compareTo(minGap) >= 0;
+        boolean hasHighRelativeVolume = indicator.getRelativeVolume().compareTo(minRelativeVolume) >= 0;
+
+        boolean isEpisodicPivot = hasEnoughGap && hasHighRelativeVolume;
+
+        if (isEpisodicPivot) {
+            ScanResult result = new ScanResult();
+            result.setStock(stock);
+            result.setSetupType(SetupType.EPISODIC_PIVOT);
+            result.setAdr(indicator.getAdr20());
+            scanResultRepository.save(result);
+        }
+    }
+
+    public void scanAllStocksForEpisodicPivot() {
+        List<Stock> stocks = stockRepository.findAll();
+
+        for (Stock s : stocks) {
+            scanStockForEpisodicPivot(s);
         }
     }
 }

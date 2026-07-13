@@ -28,13 +28,25 @@ public class PipelineService {
     }
 
     /**
-     * Runs the full pipeline fpr all tracked stocks:
+     * Runs the full pipeline for all tracked stocks:
      * refreshes price data, then recalculates indicators.
      */
     public void runForAllStocks() {
         marketDataService.refreshAllStocks();
         indicatorService.calculateForAllStocks();
         scanService.scanAllStocks();
+        alertService.createAlertsForAllScans();
+    }
+
+    /**
+     * Runs the episodic pivot pipeline for all tracked stocks:
+     * refreshes price data, recalculates indicators, scans for episodic pivots,
+     * then creates alerts for new matches.
+     */
+    public void runEpisodicPivotScan() {
+        marketDataService.refreshAllStocks();
+        indicatorService.calculateForAllStocks();
+        scanService.scanAllStocksForEpisodicPivot();
         alertService.createAlertsForAllScans();
     }
 }

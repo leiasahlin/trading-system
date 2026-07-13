@@ -24,4 +24,9 @@ public class PipelineController {
     public void run() {
         pipelineService.runForAllStocks();
     }
+
+    @PostMapping("/episodic-pivot")
+    public void runEP() {
+        pipelineService.runEpisodicPivotScan();
+    }
 }
