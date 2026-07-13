@@ -8,6 +8,7 @@ import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -23,15 +24,21 @@ public class IndicatorService {
     private final IndicatorRepository indicatorRepository;
     private final IndicatorCalculator calculator;
     private final StockRepository stockRepository;
+    private int flagWindow;
+    private int flagpoleWindow;
 
     public IndicatorService(DailyPriceRepository dailyPriceRepository,
                             IndicatorRepository indicatorRepository,
                             IndicatorCalculator indicatorCalculator,
-                            StockRepository stockRepository) {
+                            StockRepository stockRepository,
+                            @Value("${trading.scanner.breakout.flag-window}") int flagWindow,
+                            @Value("${trading.scanner.breakout.flagpole-window}") int flagpoleWindow) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.calculator = indicatorCalculator;
         this.stockRepository = stockRepository;
+        this.flagWindow = flagWindow;
+        this.flagpoleWindow = flagpoleWindow;
     }
 
     public void calculateAndSaveIndicators(Stock stock) {
@@ -76,6 +83,16 @@ public class IndicatorService {
         BigDecimal gapPercent = calculator.calculateGap(yesterday.getClose(), today.getOpen());
         BigDecimal relativeVolume = calculator.calculateRelativeVolume(today.getVolume(), volumeAvg20);
 
+        // Pullback from the flag high — flag phase approximated by a fixed window
+        // (to be replaced by dynamic phase detection later)
+        BigDecimal pullback = calculator.calculatePullback(lastN(prices, flagWindow));
+
+        // Volume contraction: flag volume vs flagpole volume
+// Flag = last N days, flagpole = the N days before that (windows approximate the phases)
+        List<DailyPrice> flagPrices = lastN(prices, flagWindow);
+        List<DailyPrice> flagpolePrices = lastN(allExceptLastN(prices, flagWindow), flagpoleWindow);
+        BigDecimal volumeContraction = calculator.calculateVolumeContraction(flagPrices, flagpolePrices);
+
         LocalDate date = prices.getLast().getDate();
 
         // Reuse the existing indicator row for this date if it exists, otherwise
@@ -101,6 +118,8 @@ public class IndicatorService {
         indicator.setConsolidationLow(consolidation.low());
         indicator.setGapPercent(gapPercent);
         indicator.setRelativeVolume(relativeVolume);
+        indicator.setPullback(pullback);
+        indicator.setVolumeContraction(volumeContraction);
         indicatorRepository.save(indicator);
     }
 
@@ -117,5 +136,12 @@ public class IndicatorService {
             return prices;
         }
         return prices.subList(prices.size() - n, prices.size());
+    }
+
+    private List<DailyPrice> allExceptLastN(List<DailyPrice> prices, int n) {
+        if (n >= prices.size()) {
+            return List.of();
+        }
+        return prices.subList(0, prices.size() - n);
     }
 }

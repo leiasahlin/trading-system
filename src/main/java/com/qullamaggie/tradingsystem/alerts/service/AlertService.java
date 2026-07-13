@@ -41,6 +41,16 @@ public class AlertService {
         this.riskPercent = riskPercent;
     }
 
+    /**
+     * Creates a buy alert from a single scan result.
+     * Skips the scan if a pending (NEW) alert already exists for the stock,
+     * to avoid duplicate signals. Derives the entry from the consolidation high,
+     * the stop from the consolidation low, calculates position size based on
+     * account risk, and persists the alert with a human-readable summary.
+     *
+     * @param scanResult the scan result to turn into an alert
+     */
+
     public void createAlertFromScan(ScanResult scanResult) {
         Stock stock = scanResult.getStock();
 

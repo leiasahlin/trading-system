@@ -209,4 +209,38 @@ public class IndicatorCalculatorTest {
 
         assertEquals(null, relVol);
     }
+
+    @Test
+    void shouldCalculateVolumeContraction() {
+        // Flaggan: snittvolym 4M. Flaggstången: snittvolym 10M.
+        // Kvot = 4M / 10M = 0.4 (volymen har torkat ut till 40%)
+        List<DailyPrice> flag = List.of(
+                priceWithVolume(4_000_000L),
+                priceWithVolume(4_000_000L));
+        List<DailyPrice> flagpole = List.of(
+                priceWithVolume(10_000_000L),
+                priceWithVolume(10_000_000L));
+
+        BigDecimal contraction = calculator.calculateVolumeContraction(flag, flagpole);
+
+        assertEquals(0, contraction.compareTo(new BigDecimal("0.4000")));
+    }
+
+    @Test
+    void shouldReturnNullVolumeContractionWhenFlagpoleEmpty() {
+        List<DailyPrice> flag = List.of(priceWithVolume(4_000_000L));
+        List<DailyPrice> flagpole = List.of();
+
+        assertNull(calculator.calculateVolumeContraction(flag, flagpole));
+    }
+
+    /**
+     * Helper: builds a DailyPrice with only volume set,
+     * since that's all calculateVolumeContraction looks at.
+     */
+    private DailyPrice priceWithVolume(Long volume) {
+        DailyPrice p = new DailyPrice();
+        p.setVolume(volume);
+        return p;
+    }
 }

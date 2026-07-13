@@ -8,6 +8,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
+import static java.util.Arrays.stream;
+
 @Component
 public class IndicatorCalculator {
 
@@ -150,5 +152,33 @@ public class IndicatorCalculator {
         BigDecimal average = BigDecimal.valueOf(averageVolume);
 
         return today.divide(average, 4, RoundingMode.HALF_UP);
+    }
+
+    public BigDecimal calculatePullback(List<DailyPrice> prices){
+        if (prices.isEmpty()) {
+            return null;
+        }
+
+        BigDecimal highest = prices.getFirst().getHigh();
+        BigDecimal current = prices.getLast().getClose();
+
+        for (DailyPrice p : prices) {
+            highest = highest.max(p.getHigh());
+        }
+
+        BigDecimal pullback = (highest.subtract(current)).divide(highest, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+        return pullback;
+    }
+
+    public BigDecimal calculateVolumeContraction(List<DailyPrice> flagPrices,
+                                                 List<DailyPrice> flagpolePrices) {
+        Long averageFlagVolume = calculateAverageVolume(flagPrices.stream().map(DailyPrice::getVolume).toList());
+        Long averageFlagpoleVolume = calculateAverageVolume(flagpolePrices.stream().map(DailyPrice::getVolume).toList());
+
+        if (averageFlagVolume == null || averageFlagpoleVolume == null || averageFlagpoleVolume == 0) {
+            return null;
+        }
+
+        return BigDecimal.valueOf(averageFlagVolume).divide(BigDecimal.valueOf(averageFlagpoleVolume), 4, RoundingMode.HALF_UP);
     }
 }

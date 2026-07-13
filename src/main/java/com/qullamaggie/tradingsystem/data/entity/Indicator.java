@@ -68,4 +68,10 @@ public class Indicator {
 
     @Column(name = "relative_volume", precision = 8, scale = 4)
     private BigDecimal relativeVolume;
+
+    @Column(name = "pullback", precision = 8, scale = 4)
+    private BigDecimal pullback;
+
+    @Column(name = "volume_contraction", precision = 8, scale = 4)
+    private BigDecimal volumeContraction;
 }
