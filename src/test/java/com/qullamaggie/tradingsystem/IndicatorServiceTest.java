@@ -6,6 +6,7 @@ import com.qullamaggie.tradingsystem.data.entity.Stock;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
+import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,14 +35,23 @@ public class IndicatorServiceTest {
     private IndicatorRepository indicatorRepository;
     @Mock
     private IndicatorCalculator calculator;
+    @Mock
+    private StockRepository stockRepository;
 
-    @InjectMocks
     private IndicatorService indicatorService;
 
     private Stock stock;
 
     @BeforeEach
     public void setUp() {
+        indicatorService = new IndicatorService(
+                dailyPriceRepository,
+                indicatorRepository,
+                calculator,
+                stockRepository,
+                10,   // flagWindow
+                60); // flagpoleWindow
+
         stock = new Stock();
         stock.setSymbol("AAPL");
     }
@@ -62,6 +72,11 @@ public class IndicatorServiceTest {
                 .thenReturn(buildPrices(60));
         when(indicatorRepository.findByStockAndDate(eq(stock), any()))
                 .thenReturn(Optional.empty());
+        when(calculator.calculateConsolidation(anyList()))
+                .thenReturn(new ConsolidationResult(
+                        new BigDecimal("110"),   // high
+                        new BigDecimal("100"),   // low
+                        new BigDecimal("10")));  // range
 
         indicatorService.calculateAndSaveIndicators(stock);
 
@@ -77,6 +92,11 @@ public class IndicatorServiceTest {
                 .thenReturn(buildPrices(60));
         when(indicatorRepository.findByStockAndDate(eq(stock), any()))
                 .thenReturn(Optional.of(existing));
+        when(calculator.calculateConsolidation(anyList()))
+                .thenReturn(new ConsolidationResult(
+                        new BigDecimal("110"),   // high
+                        new BigDecimal("100"),   // low
+                        new BigDecimal("10")));  // range
 
         indicatorService.calculateAndSaveIndicators(stock);
 
