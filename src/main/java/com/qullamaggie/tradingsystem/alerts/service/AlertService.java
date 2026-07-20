@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,22 +43,52 @@ public class AlertService {
     }
 
     /**
-     * Creates a buy alert from a single scan result.
+     * Creates an alert from a single scan result.
      * Skips the scan if a pending (NEW) alert already exists for the stock,
-     * to avoid duplicate signals. Derives the entry from the consolidation high,
-     * the stop from the consolidation low, calculates position size based on
-     * account risk, and persists the alert with a human-readable summary.
+     * to avoid duplicate signals. Delegates to the setup-specific alert logic
+     * based on the scan result's setup type.
      *
      * @param scanResult the scan result to turn into an alert
      */
-
     public void createAlertFromScan(ScanResult scanResult) {
         Stock stock = scanResult.getStock();
 
+        // Skip if there already exists a pending alert for the stock
         if (alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)) {
             return;
         }
 
+        // Move to correct logic based on setup type
+        switch (scanResult.getSetupType()) {
+            case BREAKOUT -> createBreakoutAlert(stock);
+            case EPISODIC_PIVOT -> createEpisodicPivotAlert(stock);
+        }
+    }
+
+    /**
+     * Creates an episodic pivot alert for the given stock.
+     * <p>
+     * NOT YET IMPLEMENTED. Per the methodology, an EP entry is the Opening Range
+     * High and the stop is the intraday low — both require intraday/pre-market data
+     * that the system does not yet collect. This method is a placeholder to be
+     * completed once the intraday data path is built.
+     *
+     * @param stock the stock to create an episodic pivot alert for
+     */
+    private void createEpisodicPivotAlert(Stock stock) {
+        // TODO: implement once intraday data (Opening Range High, intraday low) is available.
+        // EP entry = ORH, stop = intraday low, then ADR-validate and size like breakout.
+    }
+
+    /**
+     * Creates a breakout buy alert for the given stock.
+     * Entry is the consolidation high (breakout level), stop is the consolidation low.
+     * Rejects the trade if the entry-to-stop distance exceeds the stock's ADR
+     * (per the methodology's ADR validation rule).
+     *
+     * @param stock the stock to create a breakout alert for
+     */
+    public void createBreakoutAlert(Stock stock) {
         Optional<Indicator> latestIndicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
         if (latestIndicator.isEmpty()) {
             return;
@@ -66,6 +97,13 @@ public class AlertService {
 
         BigDecimal entry = indicator.getConsolidationHigh();
         BigDecimal stop = indicator.getConsolidationLow();
+
+        BigDecimal riskDistancePercent = entry.subtract(stop).divide(entry, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+        if (riskDistancePercent.compareTo(indicator.getAdr20()) > 0) {
+            return;
+        }
+
         int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop);
 
         Alert alert = new Alert();
