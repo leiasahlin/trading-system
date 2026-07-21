@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.data.provider;
 
+import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import java.util.List;
 
@@ -18,4 +19,15 @@ public interface MarketDataProvider {
      * @return a list of DailyPrice objects (without stock reference set)
      */
     List<DailyPrice> fetchDailyPrices(String symbol, int days);
+
+    /**
+     * Fetches the current intraday snapshot for a stock, including opening range
+     * high, intraday low, and opening range volume. Used for episodic pivot
+     * detection, which needs fresh intraday/pre-market data rather than
+     * completed daily bars.
+     *
+     * @param symbol the ticker symbol
+     * @return the current intraday snapshot
+     */
+    IntradaySnapshot fetchIntradaySnapshot(String symbol);
 }
