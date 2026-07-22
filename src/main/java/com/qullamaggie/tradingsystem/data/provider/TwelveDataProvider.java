@@ -79,7 +79,7 @@ public class TwelveDataProvider implements MarketDataProvider {
                         .path("/time_series")
                         .queryParam("symbol", symbol)
                         .queryParam("interval", "1min")
-                        .queryParam("outputsize", 30)
+                        .queryParam("outputsize", 390)
                         .queryParam("timezone", "America/New_York")
                         .queryParam("apikey", apiKey)
                         .build())

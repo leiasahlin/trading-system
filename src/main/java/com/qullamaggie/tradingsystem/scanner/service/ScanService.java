@@ -1,10 +1,13 @@
 package com.qullamaggie.tradingsystem.scanner.service;
 
+import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.*;
+import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
+import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +25,8 @@ public class ScanService {
     private final IndicatorRepository indicatorRepository;
     private final ScanResultRepository scanResultRepository;
     private final StockRepository stockRepository;
+    private final MarketDataProvider marketDataProvider;
+    private final IndicatorCalculator calculator;
 
     private final BigDecimal minPriorMove;
     private final BigDecimal maxPriorMove;
@@ -36,7 +41,7 @@ public class ScanService {
     public ScanService(DailyPriceRepository dailyPriceRepository,
                        IndicatorRepository indicatorRepository,
                        ScanResultRepository scanResultRepository,
-                       StockRepository stockRepository,
+                       StockRepository stockRepository, MarketDataProvider marketDataProvider, IndicatorCalculator calculator,
                        @Value("${trading.scanner.breakout.min-prior-move}") BigDecimal minPriorMove,
                        @Value("${trading.scanner.breakout.min-adr}") BigDecimal minAdr,
                        @Value("${trading.scanner.breakout.max-consolidation-range}") BigDecimal maxConsolidationRange,
@@ -49,6 +54,8 @@ public class ScanService {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.scanResultRepository = scanResultRepository;
+        this.marketDataProvider = marketDataProvider;
+        this.calculator = calculator;
         this.minPriorMove = minPriorMove;
         this.minAdr = minAdr;
         this.minAvgVolume = minAvgVolume;
@@ -104,17 +111,29 @@ public class ScanService {
     }
 
     public void scanStockForEpisodicPivot(Stock stock) {
-        // Collect latest indicator
+        // EP evaluates fresh intraday data: today's open vs yesterday's close (gap),
+        // and opening range volume vs the 20-day average volume (volume surge).
+        Optional<DailyPrice> latestPrice = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
         Optional<Indicator> latestIndicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
+        IntradaySnapshot snapshot = marketDataProvider.fetchIntradaySnapshot(stock.getSymbol());
 
-        if (latestIndicator.isEmpty()) {
+        if (latestIndicator.isEmpty() || snapshot == null || latestPrice.isEmpty()) {
             return;
         }
 
         Indicator indicator = latestIndicator.get();
+        DailyPrice yesterday = latestPrice.get();
 
-        boolean hasEnoughGap = indicator.getGapPercent().compareTo(minGap) >= 0;
-        boolean hasHighRelativeVolume = indicator.getRelativeVolume().compareTo(minRelativeVolume) >= 0;
+        BigDecimal gapPercent = calculator.calculateGap(yesterday.getClose(), snapshot.open());
+        BigDecimal relativeVolume = calculator.calculateRelativeVolume(snapshot.openingRangeVolume(),
+                indicator.getVolumeAvg20());
+
+        if (gapPercent == null || relativeVolume == null) {
+            return;
+        }
+
+        boolean hasEnoughGap = gapPercent.compareTo(minGap) >= 0;
+        boolean hasHighRelativeVolume = relativeVolume.compareTo(minRelativeVolume) >= 0;
 
         boolean isEpisodicPivot = hasEnoughGap && hasHighRelativeVolume;
 

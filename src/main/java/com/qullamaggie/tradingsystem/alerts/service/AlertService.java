@@ -1,7 +1,10 @@
 package com.qullamaggie.tradingsystem.alerts.service;
 
 import com.qullamaggie.tradingsystem.alerts.PositionSizeCalculator;
+import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.*;
+import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
+import com.qullamaggie.tradingsystem.data.provider.TwelveDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.AlertRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
@@ -24,6 +27,7 @@ public class AlertService {
     private final IndicatorRepository indicatorRepository;
     private final AlertRepository alertRepository;
     private final PositionSizeCalculator positionSizeCalculator;
+    private final MarketDataProvider marketDataProvider;
 
     private final BigDecimal accountSize;
     private final BigDecimal riskPercent;
@@ -31,13 +35,14 @@ public class AlertService {
     public AlertService(ScanResultRepository scanResultRepository,
                         IndicatorRepository indicatorRepository,
                         AlertRepository alertRepository,
-                        PositionSizeCalculator positionSizeCalculator,
+                        PositionSizeCalculator positionSizeCalculator, MarketDataProvider marketDataProvider,
                         @Value("${trading.account.size}") BigDecimal accountSize,
                         @Value("${trading.account.risk-percent}") BigDecimal riskPercent) {
         this.scanResultRepository = scanResultRepository;
         this.indicatorRepository = indicatorRepository;
         this.alertRepository = alertRepository;
         this.positionSizeCalculator = positionSizeCalculator;
+        this.marketDataProvider = marketDataProvider;
         this.accountSize = accountSize;
         this.riskPercent = riskPercent;
     }
@@ -76,8 +81,39 @@ public class AlertService {
      * @param stock the stock to create an episodic pivot alert for
      */
     private void createEpisodicPivotAlert(Stock stock) {
-        // TODO: implement once intraday data (Opening Range High, intraday low) is available.
         // EP entry = ORH, stop = intraday low, then ADR-validate and size like breakout.
+        IntradaySnapshot snapshot = marketDataProvider.fetchIntradaySnapshot(stock.getSymbol());
+
+        if (snapshot == null) {
+            return;
+        }
+
+        Optional<Indicator> latestIndicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
+        if (latestIndicator.isEmpty()) {
+            return;
+        }
+        Indicator indicator = latestIndicator.get();
+
+        BigDecimal entry = snapshot.openingRangeHigh();
+        BigDecimal stop = snapshot.intradayLow();
+
+        BigDecimal riskDistancePercent = entry.subtract(stop).divide(entry, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+        if (riskDistancePercent.compareTo(indicator.getAdr20()) > 0) {
+            return;
+        }
+
+        int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop);
+
+        Alert alert = new Alert();
+        alert.setStock(stock);
+        alert.setType("EPISODIC_PIVOT_BUY");
+        alert.setEntryPrice(entry);
+        alert.setStopPrice(stop);
+        alert.setShares(shares);
+        alert.setPrice(entry);
+        alert.setMessage("Episodic pivot buy: " + shares + " shares, entry " + entry + ", stop " + stop);
+        alertRepository.save(alert);
     }
 
     /**
