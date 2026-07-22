@@ -51,6 +51,9 @@ public class Indicator {
     @Column(name = "volume_avg_20")
     private Long volumeAvg20;
 
+    @Column(name = "volume_avg_50")
+    private Long volumeAvg50;
+
     @Column(name = "prior_move", precision = 8, scale = 4)
     private BigDecimal priorMove;
 

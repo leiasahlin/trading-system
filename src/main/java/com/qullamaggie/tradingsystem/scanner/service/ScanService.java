@@ -37,6 +37,7 @@ public class ScanService {
     private final BigDecimal minRelativeVolume;
     private final BigDecimal maxPullback;
     private final BigDecimal maxVolumeContraction;
+    private final BigDecimal minVolumeVsYesterday;
 
     public ScanService(DailyPriceRepository dailyPriceRepository,
                        IndicatorRepository indicatorRepository,
@@ -50,7 +51,8 @@ public class ScanService {
                        @Value("${trading.scanner.episodic-pivot.min-relative-volume}") BigDecimal minRelativeVolume,
                        @Value("${trading.scanner.breakout.max-prior-move}") BigDecimal maxPriorMove,
                        @Value("${trading.scanner.breakout.max-pullback}") BigDecimal maxPullback,
-                       @Value("${trading.scanner.breakout.max-volume-contraction}") BigDecimal maxVolumeContraction) {
+                       @Value("${trading.scanner.breakout.max-volume-contraction}") BigDecimal maxVolumeContraction,
+                       @Value("${trading.scanner.episodic-pivot.min-volume-vs-yesterday}") BigDecimal minVolumeVsYesterday) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.scanResultRepository = scanResultRepository;
@@ -66,6 +68,7 @@ public class ScanService {
         this.maxPriorMove = maxPriorMove;
         this.maxPullback = maxPullback;
         this.maxVolumeContraction = maxVolumeContraction;
+        this.minVolumeVsYesterday = minVolumeVsYesterday;
     }
 
     public void scanStock(Stock stock) {
@@ -112,7 +115,7 @@ public class ScanService {
 
     public void scanStockForEpisodicPivot(Stock stock) {
         // EP evaluates fresh intraday data: today's open vs yesterday's close (gap),
-        // and opening range volume vs the 20-day average volume (volume surge).
+        // and opening range volume vs the average volume (volume surge).
         Optional<DailyPrice> latestPrice = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
         Optional<Indicator> latestIndicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
         IntradaySnapshot snapshot = marketDataProvider.fetchIntradaySnapshot(stock.getSymbol());
@@ -126,16 +129,20 @@ public class ScanService {
 
         BigDecimal gapPercent = calculator.calculateGap(yesterday.getClose(), snapshot.open());
         BigDecimal relativeVolume = calculator.calculateRelativeVolume(snapshot.openingRangeVolume(),
-                indicator.getVolumeAvg20());
+                indicator.getVolumeAvg50());
+        BigDecimal volumeVsYesterday = calculator.calculateRelativeVolume(snapshot.openingRangeVolume(),
+                yesterday.getVolume());
 
-        if (gapPercent == null || relativeVolume == null) {
+        if (gapPercent == null || relativeVolume == null || volumeVsYesterday == null) {
             return;
         }
 
         boolean hasEnoughGap = gapPercent.compareTo(minGap) >= 0;
         boolean hasHighRelativeVolume = relativeVolume.compareTo(minRelativeVolume) >= 0;
+        boolean hasEnoughVolumeVsYesterday = volumeVsYesterday.compareTo(minVolumeVsYesterday) >= 0;
 
-        boolean isEpisodicPivot = hasEnoughGap && hasHighRelativeVolume;
+        boolean hasVolumeSurge = hasHighRelativeVolume || hasEnoughVolumeVsYesterday;
+        boolean isEpisodicPivot = hasEnoughGap && hasVolumeSurge;
 
         if (isEpisodicPivot) {
             ScanResult result = new ScanResult();

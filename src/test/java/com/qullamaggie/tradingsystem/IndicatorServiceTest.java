@@ -69,7 +69,7 @@ public class IndicatorServiceTest {
     @Test
     public void shouldSaveIndicatorWhenEnoughData() {
         when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
-                .thenReturn(buildPrices(60));
+                .thenReturn(buildPrices(80));
         when(indicatorRepository.findByStockAndDate(eq(stock), any()))
                 .thenReturn(Optional.empty());
         when(calculator.calculateConsolidation(anyList()))
@@ -89,7 +89,7 @@ public class IndicatorServiceTest {
         existing.setStock(stock);
 
         when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
-                .thenReturn(buildPrices(60));
+                .thenReturn(buildPrices(80));
         when(indicatorRepository.findByStockAndDate(eq(stock), any()))
                 .thenReturn(Optional.of(existing));
         when(calculator.calculateConsolidation(anyList()))

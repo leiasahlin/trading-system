@@ -46,7 +46,7 @@ public class IndicatorService {
         List<DailyPrice> prices = new ArrayList<>(dailyPriceRepository.findByStockOrderByDateDesc(stock));
 
         // Validate enough data is used
-        if (prices.size() < 50) {
+        if (prices.size() < 70) {
             return;
         }
 
@@ -70,6 +70,10 @@ public class IndicatorService {
         List<Long> volumes20 = lastN(prices, 20).stream().map(DailyPrice :: getVolume).toList();
         Long volumeAvg20 = calculator.calculateAverageVolume(volumes20);
 
+        // Average volume over the most recent 50 days
+        List<Long> volumes50 = lastN(prices, 50).stream().map(DailyPrice::getVolume).toList();
+        Long volumeAvg50 = calculator.calculateAverageVolume(volumes50);
+
         // Prior move over 60 trading days (3 months)
         BigDecimal priorMove = calculator.findPriorMove(lastN(prices, 60));
 
@@ -88,7 +92,7 @@ public class IndicatorService {
         BigDecimal pullback = calculator.calculatePullback(lastN(prices, flagWindow));
 
         // Volume contraction: flag volume vs flagpole volume
-// Flag = last N days, flagpole = the N days before that (windows approximate the phases)
+        // Flag = last N days, flagpole = the N days before that (windows approximate the phases)
         List<DailyPrice> flagPrices = lastN(prices, flagWindow);
         List<DailyPrice> flagpolePrices = lastN(allExceptLastN(prices, flagWindow), flagpoleWindow);
         BigDecimal volumeContraction = calculator.calculateVolumeContraction(flagPrices, flagpolePrices);
@@ -112,6 +116,7 @@ public class IndicatorService {
         indicator.setAdr20(adr20);
         indicator.setAtr20(atr20);
         indicator.setVolumeAvg20(volumeAvg20);
+        indicator.setVolumeAvg50(volumeAvg50);
         indicator.setPriorMove(priorMove);
         indicator.setConsolidationRange(consolidation.range());
         indicator.setConsolidationHigh(consolidation.high());
