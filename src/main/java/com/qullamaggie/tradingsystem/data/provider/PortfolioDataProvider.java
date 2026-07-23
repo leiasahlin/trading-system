@@ -11,16 +11,14 @@ import java.util.List;
  * never stores its own copy of holdings, only the strategy context behind them.
  * Abstracted so the broker can be swapped without affecting monitoring logic.
  */
-public class PortfolioDataProvider {
+public interface PortfolioDataProvider {
 
     /**
      * Fetches all current holdings in the portfolio.
      *
      * @return list of current holdings, empty if nothing is held
      */
-    public List<PortfolioHolding> fetchHoldings() {
-
-    }
+    List<PortfolioHolding> fetchHoldings();
 
     /**
      * Fetches the total gross value of the account, including cash and holdings.
@@ -28,7 +26,5 @@ public class PortfolioDataProvider {
      *
      * @return the account's total value
      */
-    public BigDecimal fetchAccountValue() {
-
-    }
+    public BigDecimal fetchAccountValue();
 }
