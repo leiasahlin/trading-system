@@ -22,8 +22,9 @@ public class PositionSizeCalculator {
      * @return the number of shares to buy
      */
     public int calculateShares(BigDecimal accountSize, BigDecimal riskPercent,
-                               BigDecimal entryPrice, BigDecimal stopPrice) {
+                               BigDecimal entryPrice, BigDecimal stopPrice, BigDecimal maxPositionPercent) {
         BigDecimal riskAmount = accountSize.multiply(riskPercent);
+        BigDecimal maxPositionValue = accountSize.multiply(maxPositionPercent);
 
         BigDecimal riskPerShare = entryPrice.subtract(stopPrice);
 
@@ -32,7 +33,9 @@ public class PositionSizeCalculator {
         }
 
         BigDecimal shares = riskAmount.divide(riskPerShare, 0, RoundingMode.DOWN);
+        BigDecimal maxShares = maxPositionValue.divide(entryPrice, 0, RoundingMode.DOWN);
 
-        return shares.intValue();
+
+        return shares.min(maxShares).intValue();
     }
 }

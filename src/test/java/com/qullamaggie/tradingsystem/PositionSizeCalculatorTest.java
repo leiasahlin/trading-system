@@ -17,7 +17,8 @@ public class PositionSizeCalculatorTest {
                 new BigDecimal("100000"),
                 new BigDecimal("0.01"),
                 new BigDecimal("100"),
-                new BigDecimal("95"));
+                new BigDecimal("95"),
+                new BigDecimal("0.20"));
 
         assertEquals(200, shares);
     }
@@ -28,8 +29,21 @@ public class PositionSizeCalculatorTest {
                 new BigDecimal("100000"),
                 new BigDecimal("0.01"),
                 new BigDecimal("100"),
-                new BigDecimal("100"));
+                new BigDecimal("100"),
+                new BigDecimal("0.20"));
 
         assertEquals(0, shares);
+    }
+
+    @Test
+    void shouldCapSharesAtMaxPositionSize() {
+        int shares = calculator.calculateShares(
+                new BigDecimal("100000"),
+                new BigDecimal("0.01"),
+                new BigDecimal("100"),
+                new BigDecimal("99"),
+                new BigDecimal("0.20"));
+
+        assertEquals(200, shares);
     }
 }

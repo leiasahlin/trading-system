@@ -31,13 +31,15 @@ public class AlertService {
 
     private final BigDecimal accountSize;
     private final BigDecimal riskPercent;
+    private final BigDecimal maxPositionPercent;
 
     public AlertService(ScanResultRepository scanResultRepository,
                         IndicatorRepository indicatorRepository,
                         AlertRepository alertRepository,
                         PositionSizeCalculator positionSizeCalculator, MarketDataProvider marketDataProvider,
                         @Value("${trading.account.size}") BigDecimal accountSize,
-                        @Value("${trading.account.risk-percent}") BigDecimal riskPercent) {
+                        @Value("${trading.account.risk-percent}") BigDecimal riskPercent,
+                        @Value("${trading.account.max-position-percent}") BigDecimal maxPositionPercent) {
         this.scanResultRepository = scanResultRepository;
         this.indicatorRepository = indicatorRepository;
         this.alertRepository = alertRepository;
@@ -45,6 +47,7 @@ public class AlertService {
         this.marketDataProvider = marketDataProvider;
         this.accountSize = accountSize;
         this.riskPercent = riskPercent;
+        this.maxPositionPercent = maxPositionPercent;
     }
 
     /**
@@ -103,7 +106,7 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop);
+        int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop, maxPositionPercent);
 
         Alert alert = new Alert();
         alert.setStock(stock);
@@ -140,7 +143,7 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop);
+        int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop, maxPositionPercent);
 
         Alert alert = new Alert();
         alert.setStock(stock);
