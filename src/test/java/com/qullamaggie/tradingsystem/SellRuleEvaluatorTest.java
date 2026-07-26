@@ -13,9 +13,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class SellRuleEvaluatorTest {
     private SellRuleEvaluator evaluator;
@@ -24,7 +24,7 @@ class SellRuleEvaluatorTest {
 
     @BeforeEach
     void setUp() {
-        evaluator = new SellRuleEvaluator(new SellRuleConfig(BigDecimal.valueOf(2), 3, 5));
+        evaluator = new SellRuleEvaluator(new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10));
         position = new Position();
         position.setInitialStopPrice(BigDecimal.valueOf(289));
         position.setStopPrice(BigDecimal.valueOf(289));
@@ -151,5 +151,59 @@ class SellRuleEvaluatorTest {
         LocalDate asOfDate = ENTRY_DATE.plusDays(5); // == maxDaysHeld
 
         assertTrue(evaluator.shouldTrim(position, transactions, summary, asOfDate));
+    }
+
+    // --- calculateNewTrailingStop ---
+
+    @Test
+    void notYetPastBreakeven_returnsEmpty_regardlessOfMaValue() {
+        Optional<BigDecimal> result = evaluator.calculateNewTrailingStop(position, BigDecimal.valueOf(310));
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void pastBreakeven_maLowerThanCurrentStop_returnsEmpty() {
+        position.setStopPrice(BigDecimal.valueOf(305)); // already moved to breakeven
+
+        Optional<BigDecimal> result = evaluator.calculateNewTrailingStop(position, BigDecimal.valueOf(300));
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void pastBreakeven_maEqualToCurrentStop_returnsEmpty() {
+        position.setStopPrice(BigDecimal.valueOf(305));
+
+        Optional<BigDecimal> result = evaluator.calculateNewTrailingStop(position, BigDecimal.valueOf(305));
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void pastBreakeven_maHigherThanCurrentStop_returnsNewStopValue() {
+        position.setStopPrice(BigDecimal.valueOf(305));
+
+        Optional<BigDecimal> result = evaluator.calculateNewTrailingStop(position, BigDecimal.valueOf(315));
+
+        assertTrue(result.isPresent());
+        assertEquals(0, BigDecimal.valueOf(315).compareTo(result.get()));
+    }
+
+// --- shouldExit ---
+
+    @Test
+    void closeBelowMa_returnsTrue() {
+        assertTrue(evaluator.shouldExit(BigDecimal.valueOf(315), BigDecimal.valueOf(310)));
+    }
+
+    @Test
+    void closeAboveMa_returnsFalse() {
+        assertFalse(evaluator.shouldExit(BigDecimal.valueOf(315), BigDecimal.valueOf(320)));
+    }
+
+    @Test
+    void closeEqualsMa_returnsFalse() {
+        assertFalse(evaluator.shouldExit(BigDecimal.valueOf(315), BigDecimal.valueOf(315)));
     }
 }

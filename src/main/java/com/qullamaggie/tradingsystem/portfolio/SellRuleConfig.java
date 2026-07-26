@@ -8,6 +8,6 @@ import java.math.BigDecimal;
 public record SellRuleConfig(
         BigDecimal minTrimR,
         int minDaysHeld,
-        int maxDaysHeld
-        // framtida fält (MA-period för trailing, maxOvernightPercent) läggs bara till här
+        int maxDaysHeld,
+        int maPeriod
 ) {}

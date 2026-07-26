@@ -3,13 +3,13 @@ package com.qullamaggie.tradingsystem.portfolio;
 import com.qullamaggie.tradingsystem.data.entity.Position;
 import com.qullamaggie.tradingsystem.data.entity.Transaction;
 import com.qullamaggie.tradingsystem.data.entity.TransactionType;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Evaluates the Kullamägi sell rules against an open position's transaction
@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Component
 public class SellRuleEvaluator {
-    private SellRuleConfig config;
+    private final SellRuleConfig config;
 
     public SellRuleEvaluator(SellRuleConfig config) {
         this.config = config;
@@ -46,9 +46,32 @@ public class SellRuleEvaluator {
         return hasReachedMinTrimR || withinDayWindow;
     }
 
-    // public boolean shouldUpdateTrailingStop(Position position, BigDecimal maValue, BigDecimal latestClose) {}
+    /**
+     * Calculates the new trailing stop price, if one should be applied.
+     * Returns empty if the position hasn't reached breakeven yet, or if
+     * the MA value wouldn't move the stop upward (a trailing stop must
+     * never move down).
+     */
+    public Optional<BigDecimal> calculateNewTrailingStop(Position position, BigDecimal maValue) {
+        if (position.getStopPrice().compareTo(position.getInitialStopPrice()) == 0) {
+            return  Optional.empty();
+        }
 
-    // public boolean shouldExit(Position position, BigDecimal maValue, BigDecimal latestClose) {}
+        if (maValue.compareTo(position.getStopPrice()) <= 0) {
+            return Optional.empty();
+        }
+
+        return Optional.of(maValue);
+    }
+
+    /**
+     * True if today's close has fallen below the trailing MA line -
+     * signals that the remaining position should be closed entirely.
+     */
+    public boolean shouldExit(BigDecimal maValue, BigDecimal latestClose) {
+        // If lastestClose < maValue, user should exit the stock
+        return latestClose.compareTo(maValue) < 0;
+    }
 
     private boolean hasPartialSell(List<Transaction> transactions) {
         return transactions.stream()
