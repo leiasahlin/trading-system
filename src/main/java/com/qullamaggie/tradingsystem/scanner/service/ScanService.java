@@ -8,6 +8,8 @@ import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
+import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,47 +30,23 @@ public class ScanService {
     private final MarketDataProvider marketDataProvider;
     private final IndicatorCalculator calculator;
 
-    private final BigDecimal minPriorMove;
-    private final BigDecimal maxPriorMove;
-    private final BigDecimal minAdr;
-    private final long minAvgVolume;
-    private final BigDecimal maxConsolidationRange;
-    private final BigDecimal minGap;
-    private final BigDecimal minRelativeVolume;
-    private final BigDecimal maxPullback;
-    private final BigDecimal maxVolumeContraction;
-    private final BigDecimal minVolumeVsYesterday;
+    private final BreakoutScanConfig breakoutConfig;
+    private final EpisodicPivotScanConfig episodicPivotConfig;
 
     public ScanService(DailyPriceRepository dailyPriceRepository,
                        IndicatorRepository indicatorRepository,
                        ScanResultRepository scanResultRepository,
                        StockRepository stockRepository, MarketDataProvider marketDataProvider, IndicatorCalculator calculator,
-                       @Value("${trading.scanner.breakout.min-prior-move}") BigDecimal minPriorMove,
-                       @Value("${trading.scanner.breakout.min-adr}") BigDecimal minAdr,
-                       @Value("${trading.scanner.breakout.max-consolidation-range}") BigDecimal maxConsolidationRange,
-                       @Value("${trading.scanner.breakout.min-avg-volume}") long minAvgVolume,
-                       @Value("${trading.scanner.episodic-pivot.min-gap}") BigDecimal minGap,
-                       @Value("${trading.scanner.episodic-pivot.min-relative-volume}") BigDecimal minRelativeVolume,
-                       @Value("${trading.scanner.breakout.max-prior-move}") BigDecimal maxPriorMove,
-                       @Value("${trading.scanner.breakout.max-pullback}") BigDecimal maxPullback,
-                       @Value("${trading.scanner.breakout.max-volume-contraction}") BigDecimal maxVolumeContraction,
-                       @Value("${trading.scanner.episodic-pivot.min-volume-vs-yesterday}") BigDecimal minVolumeVsYesterday) {
+                       BreakoutScanConfig breakoutConfig, EpisodicPivotScanConfig episodicPivotConfig) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.scanResultRepository = scanResultRepository;
         this.marketDataProvider = marketDataProvider;
         this.calculator = calculator;
-        this.minPriorMove = minPriorMove;
-        this.minAdr = minAdr;
-        this.minAvgVolume = minAvgVolume;
         this.stockRepository = stockRepository;
-        this.maxConsolidationRange = maxConsolidationRange;
-        this.minGap = minGap;
-        this.minRelativeVolume = minRelativeVolume;
-        this.maxPriorMove = maxPriorMove;
-        this.maxPullback = maxPullback;
-        this.maxVolumeContraction = maxVolumeContraction;
-        this.minVolumeVsYesterday = minVolumeVsYesterday;
+        this.breakoutConfig = breakoutConfig;
+        this.episodicPivotConfig = episodicPivotConfig;
+
     }
 
     public void scanStock(Stock stock) {
@@ -83,15 +61,15 @@ public class ScanService {
         Indicator indicator = latestIndicator.get();
         DailyPrice price = latestPrice.get();
 
-        boolean hasPriorMove = indicator.getPriorMove().compareTo(minPriorMove) >= 0 &&
-                indicator.getPriorMove().compareTo(maxPriorMove) <= 0;
-        boolean hasEnoughVolume = indicator.getVolumeAvg20() >= minAvgVolume;
-        boolean hasEnoughAdr = indicator.getAdr20().compareTo(minAdr) >= 0;
+        boolean hasPriorMove = indicator.getPriorMove().compareTo(breakoutConfig.minPriorMove()) >= 0 &&
+                indicator.getPriorMove().compareTo(breakoutConfig.maxPriorMove()) <= 0;
+        boolean hasEnoughVolume = indicator.getVolumeAvg20() >= breakoutConfig.minAvgVolume();
+        boolean hasEnoughAdr = indicator.getAdr20().compareTo(breakoutConfig.minAdr()) >= 0;
         boolean closedAboveShortMa = price.getClose().compareTo(indicator.getMa10()) > 0 ||   // close > ma10
                 price.getClose().compareTo(indicator.getMa20()) > 0; // or close > ma20
-        boolean hasTightConsolidation = indicator.getConsolidationRange().compareTo(maxConsolidationRange) <= 0;
-        boolean hasShallowPullback = indicator.getPullback().compareTo(maxPullback) <= 0;
-        boolean hasVolumeContraction = indicator.getVolumeContraction().compareTo(maxVolumeContraction) <= 0;
+        boolean hasTightConsolidation = indicator.getConsolidationRange().compareTo(breakoutConfig.maxConsolidationRange()) <= 0;
+        boolean hasShallowPullback = indicator.getPullback().compareTo(breakoutConfig.maxPullback()) <= 0;
+        boolean hasVolumeContraction = indicator.getVolumeContraction().compareTo(breakoutConfig.maxVolumeContraction()) <= 0;
 
         boolean isBreakout = hasPriorMove && hasEnoughVolume && hasEnoughAdr
                 && closedAboveShortMa && hasTightConsolidation && hasShallowPullback && hasVolumeContraction;
@@ -137,9 +115,9 @@ public class ScanService {
             return;
         }
 
-        boolean hasEnoughGap = gapPercent.compareTo(minGap) >= 0;
-        boolean hasHighRelativeVolume = relativeVolume.compareTo(minRelativeVolume) >= 0;
-        boolean hasEnoughVolumeVsYesterday = volumeVsYesterday.compareTo(minVolumeVsYesterday) >= 0;
+        boolean hasEnoughGap = gapPercent.compareTo(episodicPivotConfig.minGap()) >= 0;
+        boolean hasHighRelativeVolume = relativeVolume.compareTo(episodicPivotConfig.minRelativeVolume()) >= 0;
+        boolean hasEnoughVolumeVsYesterday = volumeVsYesterday.compareTo(episodicPivotConfig.minVolumeVsYesterday()) >= 0;
 
         boolean hasVolumeSurge = hasHighRelativeVolume || hasEnoughVolumeVsYesterday;
         boolean isEpisodicPivot = hasEnoughGap && hasVolumeSurge;

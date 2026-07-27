@@ -11,6 +11,8 @@ import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
+import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,19 +43,23 @@ class ScanServiceTest {
 
     @BeforeEach
     void setUp() {
-        scanService = new ScanService(
-                dailyPriceRepository, indicatorRepository, scanResultRepository,
-                stockRepository, marketDataProvider, calculator,
+        BreakoutScanConfig breakoutConfig = new BreakoutScanConfig(
                 new BigDecimal("30"),   // minPriorMove
+                new BigDecimal("100"),  // maxPriorMove
                 new BigDecimal("3"),    // minAdr
-                new BigDecimal("15"),   // maxConsolidationRange
                 1_000_000L,             // minAvgVolume
+                new BigDecimal("15"),   // maxConsolidationRange
+                new BigDecimal("25"),   // maxPullback
+                new BigDecimal("0.8")); // maxVolumeContraction
+
+        EpisodicPivotScanConfig episodicPivotConfig = new EpisodicPivotScanConfig(
                 new BigDecimal("10"),   // minGap
                 new BigDecimal("1"),    // minRelativeVolume
-                new BigDecimal("100"),  // maxPriorMove
-                new BigDecimal("25"),   // maxPullback
-                new BigDecimal("0.8"),  // maxVolumeContraction
                 new BigDecimal("2"));   // minVolumeVsYesterday
+
+        scanService = new ScanService(
+                dailyPriceRepository, indicatorRepository, scanResultRepository,
+                stockRepository, marketDataProvider, calculator, breakoutConfig, episodicPivotConfig);   // minVolumeVsYesterday
 
         stock = new Stock();
         stock.setSymbol("AAPL");
