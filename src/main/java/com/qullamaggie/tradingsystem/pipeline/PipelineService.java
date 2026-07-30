@@ -3,6 +3,7 @@ package com.qullamaggie.tradingsystem.pipeline;
 import com.qullamaggie.tradingsystem.alerts.service.AlertService;
 import com.qullamaggie.tradingsystem.data.service.MarketDataService;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
+import com.qullamaggie.tradingsystem.portfolio.service.StockUniverseService;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.springframework.stereotype.Service;
 
@@ -17,14 +18,16 @@ public class PipelineService {
     private final IndicatorService indicatorService;
     private final ScanService scanService;
     private final AlertService alertService;
+    private final StockUniverseService stockUniverseService;
 
     public PipelineService(MarketDataService marketDataService,
                            IndicatorService indicatorService, ScanService scanService,
-                           AlertService alertService) {
+                           AlertService alertService, StockUniverseService stockUniverseService) {
         this.marketDataService = marketDataService;
         this.indicatorService = indicatorService;
         this.scanService = scanService;
         this.alertService = alertService;
+        this.stockUniverseService = stockUniverseService;
     }
 
     /**
@@ -34,6 +37,7 @@ public class PipelineService {
     public void runForAllStocks() {
         marketDataService.refreshAllStocks();
         indicatorService.calculateForAllStocks();
+        stockUniverseService.reEvaluateAllStocks();
         scanService.scanAllStocks();
         alertService.createAlertsForAllScans();
     }

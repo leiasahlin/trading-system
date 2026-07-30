@@ -84,7 +84,7 @@ public class ScanService {
     }
 
     public void scanAllStocks() {
-        List<Stock> stocks = stockRepository.findAll();
+        List<Stock> stocks = stockRepository.findByEligibleTrue();
 
         for (Stock s : stocks) {
             scanStock(s);
@@ -132,7 +132,7 @@ public class ScanService {
     }
 
     public void scanAllStocksForEpisodicPivot() {
-        List<Stock> stocks = stockRepository.findAll();
+        List<Stock> stocks = stockRepository.findByEligibleTrue();
 
         for (Stock s : stocks) {
             scanStockForEpisodicPivot(s);

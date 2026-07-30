@@ -38,4 +38,6 @@ public class Stock {
 
     @Column(nullable = false,updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    private boolean eligible = false;
 }
