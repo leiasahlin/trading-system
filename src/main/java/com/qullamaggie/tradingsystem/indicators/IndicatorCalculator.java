@@ -181,4 +181,20 @@ public class IndicatorCalculator {
 
         return BigDecimal.valueOf(averageFlagVolume).divide(BigDecimal.valueOf(averageFlagpoleVolume), 4, RoundingMode.HALF_UP);
     }
+
+    public BigDecimal calculateEMA(List<BigDecimal> closes, int period) {
+        if (closes.size() < period) {
+            return null;
+        }
+
+        BigDecimal multiplier = BigDecimal.valueOf(2.0 / (period + 1));
+        BigDecimal ema = calculateMA(closes.subList(0, period)); // seed with SMA
+
+        for (int i = period; i < closes.size(); i++) {
+            BigDecimal close = closes.get(i);
+            ema = close.subtract(ema).multiply(multiplier).add(ema);
+        }
+
+        return ema;
+    }
 }

@@ -9,8 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class IndicatorCalculatorTest {
     private final IndicatorCalculator calculator = new IndicatorCalculator();
@@ -242,5 +241,50 @@ public class IndicatorCalculatorTest {
         DailyPrice p = new DailyPrice();
         p.setVolume(volume);
         return p;
+    }
+
+    @Test
+    void calculateEMA_returnsNull_whenFewerPricesThanPeriod() {
+        List<BigDecimal> closes = List.of(
+                BigDecimal.valueOf(10), BigDecimal.valueOf(11), BigDecimal.valueOf(12));
+
+        assertNull(calculator.calculateEMA(closes, 5));
+    }
+
+    @Test
+    void calculateEMA_equalsSMA_whenExactlyPeriodPrices() {
+        // Med exakt `period` priser hinner loopen aldrig köra - resultatet är
+        // rena seed-värdet, alltså SMA:t.
+        List<BigDecimal> closes = List.of(
+                BigDecimal.valueOf(10), BigDecimal.valueOf(20), BigDecimal.valueOf(30));
+
+        BigDecimal ema = calculator.calculateEMA(closes, 3);
+
+        assertEquals(0, BigDecimal.valueOf(20).compareTo(ema)); // (10+20+30)/3
+    }
+
+    @Test
+    void calculateEMA_weightsRecentPricesMoreHeavilyThanSMA() {
+        // Stigande serie: EMA ska ligga NÄRMARE det senaste priset än vad SMA gör,
+        // eftersom den viktar nyare data tyngre.
+        List<BigDecimal> closes = List.of(
+                BigDecimal.valueOf(10), BigDecimal.valueOf(20), BigDecimal.valueOf(30),
+                BigDecimal.valueOf(40), BigDecimal.valueOf(50));
+
+        BigDecimal ema = calculator.calculateEMA(closes, 3);
+        BigDecimal sma = calculator.calculateMA(closes);
+
+        assertTrue(ema.compareTo(sma) > 0);
+    }
+
+    @Test
+    void calculateEMA_returnsFlatValue_whenAllPricesIdentical() {
+        List<BigDecimal> closes = List.of(
+                BigDecimal.valueOf(25), BigDecimal.valueOf(25), BigDecimal.valueOf(25),
+                BigDecimal.valueOf(25), BigDecimal.valueOf(25));
+
+        BigDecimal ema = calculator.calculateEMA(closes, 3);
+
+        assertEquals(0, BigDecimal.valueOf(25).compareTo(ema));
     }
 }
