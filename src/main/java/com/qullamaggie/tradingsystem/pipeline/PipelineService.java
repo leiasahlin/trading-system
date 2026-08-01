@@ -1,12 +1,17 @@
 package com.qullamaggie.tradingsystem.pipeline;
 
 import com.qullamaggie.tradingsystem.alerts.service.AlertService;
+import com.qullamaggie.tradingsystem.data.entity.MarketRegime;
+import com.qullamaggie.tradingsystem.data.entity.RegimeStatus;
 import com.qullamaggie.tradingsystem.data.service.MarketDataService;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
+import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
 import com.qullamaggie.tradingsystem.portfolio.service.PositionMonitoringService;
 import com.qullamaggie.tradingsystem.portfolio.service.StockUniverseService;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
 
 /**
  * Runs the full pipeline for all tracked stocks:
@@ -21,16 +26,18 @@ public class PipelineService {
     private final AlertService alertService;
     private final StockUniverseService stockUniverseService;
     private final PositionMonitoringService positionMonitoringService;
+    private final MarketRegimeService marketRegimeService;
 
     public PipelineService(MarketDataService marketDataService,
                            IndicatorService indicatorService, ScanService scanService,
-                           AlertService alertService, StockUniverseService stockUniverseService, PositionMonitoringService positionMonitoringService) {
+                           AlertService alertService, StockUniverseService stockUniverseService, PositionMonitoringService positionMonitoringService, MarketRegimeService marketRegimeService) {
         this.marketDataService = marketDataService;
         this.indicatorService = indicatorService;
         this.scanService = scanService;
         this.alertService = alertService;
         this.stockUniverseService = stockUniverseService;
         this.positionMonitoringService = positionMonitoringService;
+        this.marketRegimeService = marketRegimeService;
     }
 
     /**
@@ -40,9 +47,14 @@ public class PipelineService {
     public void runForAllStocks() {
         marketDataService.refreshAllStocks();
         indicatorService.calculateForAllStocks();
+        MarketRegime regime = marketRegimeService.evaluateAndSave(LocalDate.now());
         stockUniverseService.reEvaluateAllStocks();
-        scanService.scanAllStocks();
-        alertService.createAlertsForAllScans();
+
+        if (regime.getStatus() == RegimeStatus.RISK_ON) {
+            scanService.scanAllStocks();
+            alertService.createAlertsForAllScans();
+        }
+
         positionMonitoringService.monitorAllOpenPositions();
     }
 
@@ -64,6 +76,14 @@ public class PipelineService {
      * intraday snapshot per stock.
      */
     public void runEpisodicPivotScanOnly() {
+        boolean riskOn = marketRegimeService.getLatest()
+                .map(regime -> regime.getStatus() == RegimeStatus.RISK_ON)
+                .orElse(false);
+
+        if (!riskOn) {
+            return;
+        }
+
         scanService.scanAllStocksForEpisodicPivot();
         alertService.createAlertsForAllScans();
     }

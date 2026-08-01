@@ -46,4 +46,7 @@ public class Stock {
     private BigDecimal marketCapUsd;
 
     private LocalDate marketCapUpdatedAt;
+
+    @Enumerated(EnumType.STRING)
+    private StockType type = StockType.TRADEABLE;
 }

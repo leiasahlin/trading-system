@@ -56,6 +56,10 @@ public class StockUniverseService {
     }
 
     public void reEvaluateEligibility(Stock stock) {
+        if (stock.getType() == StockType.INDEX) {
+            return;
+        }
+
         refreshMarketCapIfStale(stock, LocalDate.now());
 
         Optional<DailyPrice> price = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
