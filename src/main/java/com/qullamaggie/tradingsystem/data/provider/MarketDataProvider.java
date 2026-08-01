@@ -2,6 +2,8 @@ package com.qullamaggie.tradingsystem.data.provider;
 
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
+
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -30,4 +32,11 @@ public interface MarketDataProvider {
      * @return the current intraday snapshot
      */
     IntradaySnapshot fetchIntradaySnapshot(String symbol);
+
+    /**
+     * Fetches the company's current market capitalization in USD.
+     * Requires a paid Twelve Data tier - fundamentals are not included
+     * in the free plan.
+     */
+    BigDecimal fetchMarketCap(String symbol);
 }

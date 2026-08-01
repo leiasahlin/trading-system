@@ -3,6 +3,7 @@ package com.qullamaggie.tradingsystem;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import com.qullamaggie.tradingsystem.data.entity.Indicator;
 import com.qullamaggie.tradingsystem.data.entity.Stock;
+import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
@@ -10,6 +11,7 @@ import com.qullamaggie.tradingsystem.data.service.MarketDataService;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
 import com.qullamaggie.tradingsystem.portfolio.StockAlreadyExistsException;
 import com.qullamaggie.tradingsystem.portfolio.service.StockUniverseService;
+import com.qullamaggie.tradingsystem.universe.UniverseFilterConfig;
 import com.qullamaggie.tradingsystem.universe.UniverseFilterEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,6 +37,7 @@ class StockUniverseServiceTest {
     @Mock private MarketDataService marketDataService;
     @Mock private IndicatorService indicatorService;
     @Mock private UniverseFilterEvaluator universeFilterEvaluator;
+    @Mock private MarketDataProvider marketDataProvider;
 
     private StockUniverseService stockUniverseService;
 
@@ -41,10 +46,16 @@ class StockUniverseServiceTest {
 
     @BeforeEach
     void setUp() {
+        UniverseFilterConfig config = new UniverseFilterConfig(
+                BigDecimal.valueOf(5),      // minPrice
+                1_000_000L,                 // minAvgVolume
+                BigDecimal.valueOf(4),      // minAdr
+                7);                         // marketCapMaxAgeDays
+
         stockUniverseService = new StockUniverseService(
                 stockRepository, dailyPriceRepository, indicatorRepository,
-                marketDataService, indicatorService, universeFilterEvaluator);
-
+                marketDataService, indicatorService, universeFilterEvaluator,
+                marketDataProvider, config);
         price = new DailyPrice();
         indicator = new Indicator();
     }
@@ -163,5 +174,78 @@ class StockUniverseServiceTest {
         verify(dailyPriceRepository).findTop1ByStockOrderByDateDesc(stockB);
         verify(stockRepository).save(stockA);
         verify(stockRepository).save(stockB);
+    }
+
+    // --- market cap refresh ---
+
+    @Test
+    void reEvaluateEligibility_fetchesMarketCap_whenNeverFetchedBefore() {
+        Stock stock = new Stock();
+        stock.setSymbol("AAPL");
+        // marketCapUpdatedAt är null som default
+
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(price));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
+        when(universeFilterEvaluator.isEligible(price, indicator)).thenReturn(true);
+        when(marketDataProvider.fetchMarketCap("AAPL")).thenReturn(BigDecimal.valueOf(50_000_000_000L));
+
+        stockUniverseService.reEvaluateEligibility(stock);
+
+        assertEquals(0, BigDecimal.valueOf(50_000_000_000L).compareTo(stock.getMarketCapUsd()));
+        assertEquals(LocalDate.now(), stock.getMarketCapUpdatedAt());
+    }
+
+    @Test
+    void reEvaluateEligibility_skipsMarketCapFetch_whenValueIsFresh() {
+        Stock stock = new Stock();
+        stock.setSymbol("AAPL");
+        stock.setMarketCapUsd(BigDecimal.valueOf(50_000_000_000L));
+        stock.setMarketCapUpdatedAt(LocalDate.now().minusDays(2)); // under 7-dagarströskeln
+
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(price));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
+        when(universeFilterEvaluator.isEligible(price, indicator)).thenReturn(true);
+
+        stockUniverseService.reEvaluateEligibility(stock);
+
+        verifyNoInteractions(marketDataProvider);
+        assertEquals(LocalDate.now().minusDays(2), stock.getMarketCapUpdatedAt());
+    }
+
+    @Test
+    void reEvaluateEligibility_fetchesMarketCap_whenValueIsStale() {
+        Stock stock = new Stock();
+        stock.setSymbol("AAPL");
+        stock.setMarketCapUsd(BigDecimal.valueOf(40_000_000_000L));
+        stock.setMarketCapUpdatedAt(LocalDate.now().minusDays(10)); // över tröskeln
+
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(price));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
+        when(universeFilterEvaluator.isEligible(price, indicator)).thenReturn(true);
+        when(marketDataProvider.fetchMarketCap("AAPL")).thenReturn(BigDecimal.valueOf(55_000_000_000L));
+
+        stockUniverseService.reEvaluateEligibility(stock);
+
+        assertEquals(0, BigDecimal.valueOf(55_000_000_000L).compareTo(stock.getMarketCapUsd()));
+        assertEquals(LocalDate.now(), stock.getMarketCapUpdatedAt());
+    }
+
+    @Test
+    void reEvaluateEligibility_leavesTimestampUnset_whenMarketCapFetchReturnsNull() {
+        // Gratisplanen ger ingen fundamentaldata - stämpeln ska INTE sättas,
+        // så att systemet försöker igen nästa körning i stället för att låsa
+        // ute aktien i en vecka.
+        Stock stock = new Stock();
+        stock.setSymbol("AAPL");
+
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(price));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
+        when(universeFilterEvaluator.isEligible(price, indicator)).thenReturn(true);
+        when(marketDataProvider.fetchMarketCap("AAPL")).thenReturn(null);
+
+        stockUniverseService.reEvaluateEligibility(stock);
+
+        assertNull(stock.getMarketCapUsd());
+        assertNull(stock.getMarketCapUpdatedAt());
     }
 }

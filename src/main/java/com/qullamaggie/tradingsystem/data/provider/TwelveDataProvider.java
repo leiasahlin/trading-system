@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,7 +88,7 @@ public class TwelveDataProvider implements MarketDataProvider {
                 .body(String.class);
 
         List<JsonNode> openingBars = new ArrayList<>();
-        LocalDate today = LocalDate.now();  // OBS: Local time, change later!
+        LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         LocalTime marketOpen = LocalTime.of(9, 30);
         LocalTime windowEnd = marketOpen.plusMinutes(openingRangeMinutes);
@@ -132,5 +133,35 @@ public class TwelveDataProvider implements MarketDataProvider {
         }
 
         return new IntradaySnapshot(symbol, today, open, openingRangeHigh, intradayLow, openingRangeVolume);
+    }
+
+    @Override
+    public BigDecimal fetchMarketCap(String symbol) {
+        // NOTE: /statistics is a fundamentals endpoint and requires a paid
+        // Twelve Data tier. On the free plan this returns an error payload
+        // rather than data, so market cap stays null until the plan is upgraded.
+        String json = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/statistics")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .body(String.class);
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(json);
+            JsonNode marketCap = root.path("statistics")
+                    .path("valuations_metrics")
+                    .path("market_capitalization");
+
+            if (marketCap.isMissingNode() || marketCap.isNull()) {
+                return null;
+            }
+            return new BigDecimal(marketCap.asText());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Twelve Data statistics response for " + symbol, e);
+        }
     }
 }
