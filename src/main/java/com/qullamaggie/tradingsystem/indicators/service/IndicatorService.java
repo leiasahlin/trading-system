@@ -24,8 +24,8 @@ public class IndicatorService {
     private final IndicatorRepository indicatorRepository;
     private final IndicatorCalculator calculator;
     private final StockRepository stockRepository;
-    private int flagWindow;
-    private int flagpoleWindow;
+    private final int flagWindow;
+    private final int flagpoleWindow;
 
     public IndicatorService(DailyPriceRepository dailyPriceRepository,
                             IndicatorRepository indicatorRepository,
@@ -52,6 +52,11 @@ public class IndicatorService {
 
         // reverse to oldest-first so ADR/ATR can use the previous day's close
         Collections.reverse(prices);
+
+        // EMA uses the full history: it's seeded with an SMA over the first `period`
+        // closes and then applied forward, so a longer series converges better
+        List<BigDecimal> allCloses = prices.stream().map(DailyPrice::getClose).toList();
+        BigDecimal ema10 = calculator.calculateEMA(allCloses, 10);
 
         //Moving averages over the most recent 10,20 and 50 days
         List<BigDecimal> closesMa10 = lastN(prices,10).stream().map(DailyPrice::getClose).toList();
@@ -113,6 +118,7 @@ public class IndicatorService {
         indicator.setMa10(ma10);
         indicator.setMa20(ma20);
         indicator.setMa50(ma50);
+        indicator.setEma10(ema10);
         indicator.setAdr20(adr20);
         indicator.setAtr20(atr20);
         indicator.setVolumeAvg20(volumeAvg20);

@@ -6,19 +6,25 @@ import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.*;
 import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.AlertRepository;
+import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
+import com.qullamaggie.tradingsystem.scanner.ParabolicShortConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -32,6 +38,7 @@ class AlertServiceTest {
     @Mock private PositionSizeCalculator positionSizeCalculator;
     @Mock private MarketDataProvider marketDataProvider;
     @Mock private MarketRegimeService marketRegimeService;
+    @Mock private DailyPriceRepository dailyPriceRepository;
 
     private AlertService alertService;
     private Stock stock;
@@ -39,13 +46,15 @@ class AlertServiceTest {
     @BeforeEach
     void setUp() {
         alertService = new AlertService(
-                        scanResultRepository, indicatorRepository, alertRepository,
-                        positionSizeCalculator, marketDataProvider,
-                        new BigDecimal("100000"),      // accountSize
-                        new BigDecimal("0.20"),        // maxPositionPercent
-                        marketRegimeService,
-                        new BigDecimal("0.005"),       // riskPercentDefensive
-                        new BigDecimal("0.01"));       // riskPercentOffensive
+                scanResultRepository, indicatorRepository, alertRepository,
+                positionSizeCalculator, marketDataProvider, dailyPriceRepository,
+                new BigDecimal("100000"),      // accountSize
+                new BigDecimal("0.20"),        // maxPositionPercent
+                marketRegimeService,
+                new BigDecimal("0.005"),       // riskPercentDefensive
+                new BigDecimal("0.01"),        // riskPercentOffensive
+                15,                                 // parabolicLookbackDays
+                new BigDecimal("0.5"));        // parabolicStopMarginPercent
 
         stock = new Stock();
         stock.setSymbol("AAPL");
@@ -142,6 +151,41 @@ class AlertServiceTest {
 
         verify(positionSizeCalculator).calculateShares(
                 any(), eq(new BigDecimal("0.005")), any(), any(), any());
+    }
+
+    @Test
+    void shouldCreateParabolicShortAlert_withStopAboveTheRunUpHigh() {
+        when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(false);
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "10")));
+        when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
+                .thenReturn(parabolicPrices());
+        when(positionSizeCalculator.calculateShares(any(), any(), any(), any(), any()))
+                .thenReturn(30);
+
+        alertService.createAlertFromScan(scanResult(SetupType.PARABOLIC_SHORT));
+
+        ArgumentCaptor<Alert> captor = ArgumentCaptor.forClass(Alert.class);
+        verify(alertRepository).save(captor.capture());
+
+        Alert alert = captor.getValue();
+        // Stoppen ska ligga ÖVER entry vid en blankning, till skillnad från långa setuper
+        assertTrue(alert.getStopPrice().compareTo(alert.getEntryPrice()) > 0);
+    }
+
+    private List<DailyPrice> parabolicPrices() {
+        List<DailyPrice> prices = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            DailyPrice p = new DailyPrice();
+            p.setDate(LocalDate.of(2026, 8, 1).minusDays(i));
+            p.setClose(new BigDecimal("300"));
+            p.setHigh(new BigDecimal("302"));
+            p.setLow(new BigDecimal("298"));
+            p.setOpen(new BigDecimal("300"));
+            p.setVolume(1_000_000L);
+            prices.add(p);
+        }
+        return prices;
     }
 
     private ScanResult scanResult(SetupType type) {

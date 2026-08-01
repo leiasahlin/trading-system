@@ -52,9 +52,10 @@ public class PipelineService {
 
         if (regime.getStatus() == RegimeStatus.RISK_ON) {
             scanService.scanAllStocks();
-            alertService.createAlertsForAllScans();
         }
+        scanService.scanAllStocksForParabolicShort();
 
+        alertService.createAlertsForAllScans();
         positionMonitoringService.monitorAllOpenPositions();
     }
 

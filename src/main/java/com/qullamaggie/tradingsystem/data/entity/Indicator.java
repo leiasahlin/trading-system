@@ -77,4 +77,6 @@ public class Indicator {
 
     @Column(name = "volume_contraction", precision = 8, scale = 4)
     private BigDecimal volumeContraction;
+
+    private BigDecimal ema10;
 }

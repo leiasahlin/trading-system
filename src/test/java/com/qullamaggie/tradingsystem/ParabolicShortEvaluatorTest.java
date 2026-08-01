@@ -36,7 +36,8 @@ class ParabolicShortEvaluatorTest {
                 3,                                      // minConsecutiveUpDays
                 BigDecimal.valueOf(1.5),                // minBreakdownVolumeRatio
                 BigDecimal.valueOf(2.0),                // minChurnVolumeRatio
-                BigDecimal.valueOf(2));                 // maxChurnPricePercent
+                BigDecimal.valueOf(2),                  // maxChurnPricePercent
+                BigDecimal.valueOf(0.5));               // stopMarginPercent
 
         evaluator = new ParabolicShortEvaluator(config, new IndicatorCalculator());
     }

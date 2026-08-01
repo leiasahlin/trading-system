@@ -26,9 +26,9 @@ public class PositionSizeCalculator {
         BigDecimal riskAmount = accountSize.multiply(riskPercent);
         BigDecimal maxPositionValue = accountSize.multiply(maxPositionPercent);
 
-        BigDecimal riskPerShare = entryPrice.subtract(stopPrice);
+        BigDecimal riskPerShare = entryPrice.subtract(stopPrice).abs();
 
-        if (riskPerShare.compareTo(BigDecimal.ZERO) <= 0) {
+        if (riskPerShare.compareTo(BigDecimal.ZERO) == 0) {
             return 0;
         }
 

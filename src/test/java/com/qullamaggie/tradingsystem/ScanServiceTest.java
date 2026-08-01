@@ -13,6 +13,8 @@ import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
 import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
+import com.qullamaggie.tradingsystem.scanner.ParabolicShortConfig;
+import com.qullamaggie.tradingsystem.scanner.ParabolicShortEvaluator;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +41,7 @@ class ScanServiceTest {
     @Mock private StockRepository stockRepository;
     @Mock private MarketDataProvider marketDataProvider;
     @Mock private IndicatorCalculator calculator;
+    @Mock private ParabolicShortEvaluator parabolicShortEvaluator;
 
     private ScanService scanService;
     private Stock stock;
@@ -57,9 +62,25 @@ class ScanServiceTest {
                 new BigDecimal("1"),    // minRelativeVolume
                 new BigDecimal("2"));   // minVolumeVsYesterday
 
+        ParabolicShortConfig parabolicConfig = new ParabolicShortConfig(
+                BigDecimal.valueOf(5),                  // minDailyGainPercent
+                BigDecimal.valueOf(50),                 // minLargeCapMovePercent
+                BigDecimal.valueOf(120),                // minMidCapMovePercent
+                BigDecimal.valueOf(300),                // minSmallCapMovePercent
+                BigDecimal.valueOf(2_000_000_000L),     // smallCapMaxUsd
+                BigDecimal.valueOf(10_000_000_000L),    // largeCapMinUsd
+                15,                                     // lookbackDays
+                3,                                      // minConsecutiveUpDays
+                BigDecimal.valueOf(1.5),                // minBreakdownVolumeRatio
+                BigDecimal.valueOf(2.0),                // minChurnVolumeRatio
+                BigDecimal.valueOf(2),                  // maxChurnPricePercent
+                BigDecimal.valueOf(0.5));               // stopMarginPercent
+
+
         scanService = new ScanService(
                 dailyPriceRepository, indicatorRepository, scanResultRepository,
-                stockRepository, marketDataProvider, calculator, breakoutConfig, episodicPivotConfig);   // minVolumeVsYesterday
+                stockRepository, marketDataProvider, calculator, parabolicConfig,
+                parabolicShortEvaluator, breakoutConfig, episodicPivotConfig);   // minVolumeVsYesterday
 
         stock = new Stock();
         stock.setSymbol("AAPL");
@@ -160,7 +181,72 @@ class ScanServiceTest {
         verify(scanResultRepository, never()).save(any());
     }
 
-    // ---------- Hjälpmetoder ----------
+    @Test
+    void shouldSaveScanResult_whenEvaluatorFindsParabolicShort() {
+        stock.setMarketCapUsd(new BigDecimal("50000000000"));
+
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorForParabolic()));
+        when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
+                .thenReturn(pricesNewestFirst(20));
+        when(parabolicShortEvaluator.isParabolicShort(any(), any(), any(), any()))
+                .thenReturn(true);
+
+        scanService.scanStockForParabolicShort(stock);
+
+        verify(scanResultRepository).save(any(ScanResult.class));
+    }
+
+    @Test
+    void shouldNotScanForParabolicShort_whenMarketCapUnknown() {
+        // marketCapUsd är null - extremitetströskeln kan inte avgöras
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorForParabolic()));
+
+        scanService.scanStockForParabolicShort(stock);
+
+        verifyNoInteractions(parabolicShortEvaluator);
+        verify(scanResultRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldNotScanForParabolicShort_whenTooFewPrices() {
+        stock.setMarketCapUsd(new BigDecimal("50000000000"));
+
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorForParabolic()));
+        when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
+                .thenReturn(pricesNewestFirst(5));   // under lookbackDays (15)
+
+        scanService.scanStockForParabolicShort(stock);
+
+        verifyNoInteractions(parabolicShortEvaluator);
+    }
+
+    // ---------- Help methods ----------
+
+    private Indicator indicatorForParabolic() {
+        Indicator i = new Indicator();
+        i.setEma10(new BigDecimal("300"));
+        i.setVolumeAvg20(1_000_000L);
+        i.setAdr20(new BigDecimal("5"));
+        return i;
+    }
+
+    private List<DailyPrice> pricesNewestFirst(int count) {
+        List<DailyPrice> prices = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            DailyPrice p = new DailyPrice();
+            p.setDate(LocalDate.of(2026, 8, 1).minusDays(i));
+            p.setClose(new BigDecimal("300"));
+            p.setHigh(new BigDecimal("305"));
+            p.setLow(new BigDecimal("295"));
+            p.setOpen(new BigDecimal("300"));
+            p.setVolume(1_000_000L);
+            prices.add(p);
+        }
+        return prices;
+    }
 
     private void stubEpisodicPivotData() {
         when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))

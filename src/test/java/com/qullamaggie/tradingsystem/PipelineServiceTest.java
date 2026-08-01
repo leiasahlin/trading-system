@@ -57,24 +57,27 @@ public class PipelineServiceTest {
         inOrder.verify(marketRegimeService).evaluateAndSave(any());
         inOrder.verify(stockUniverseService).reEvaluateAllStocks();
         inOrder.verify(scanService).scanAllStocks();
+        inOrder.verify(scanService).scanAllStocksForParabolicShort();
         inOrder.verify(alertService).createAlertsForAllScans();
         inOrder.verify(positionMonitoringService).monitorAllOpenPositions();
     }
 
     @Test
-    public void shouldSkipScanning_butStillMonitorPositions_whenRiskOff() {
+    public void shouldSkipLongScans_butStillRunParabolicAndMonitor_whenRiskOff() {
         when(marketRegimeService.evaluateAndSave(any())).thenReturn(regime(RegimeStatus.RISK_OFF));
 
         pipelineService.runForAllStocks();
 
-        // Datainsamling sker alltid - regimen ska bara stoppa NYA affärer
         verify(marketDataService).refreshAllStocks();
         verify(indicatorService).calculateForAllStocks();
         verify(stockUniverseService).reEvaluateAllStocks();
 
-        verifyNoInteractions(scanService, alertService);
+        // Regimen stoppar bara långa setuper
+        verify(scanService, never()).scanAllStocks();
 
-        // Befintliga positioner måste hanteras oavsett marknadsläge
+        // Parabolic är riktningsneutral och körs oavsett marknadsläge
+        verify(scanService).scanAllStocksForParabolicShort();
+        verify(alertService).createAlertsForAllScans();
         verify(positionMonitoringService).monitorAllOpenPositions();
     }
 
