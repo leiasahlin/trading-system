@@ -4,6 +4,7 @@ import com.qullamaggie.tradingsystem.alerts.service.AlertService;
 import com.qullamaggie.tradingsystem.data.service.MarketDataService;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
 import com.qullamaggie.tradingsystem.pipeline.PipelineService;
+import com.qullamaggie.tradingsystem.portfolio.service.PositionMonitoringService;
 import com.qullamaggie.tradingsystem.portfolio.service.StockUniverseService;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,8 @@ public class PipelineServiceTest {
     private AlertService alertService;
     @Mock
     private StockUniverseService stockUniverseService;
+    @Mock
+    private PositionMonitoringService positionMonitoringService;
 
     @InjectMocks
     private PipelineService pipelineService;
@@ -35,11 +38,13 @@ public class PipelineServiceTest {
     public void shouldRunAllStepsInOrder() {
         pipelineService.runForAllStocks();
 
-        InOrder inOrder = inOrder(marketDataService, indicatorService, stockUniverseService, scanService, alertService);
+        InOrder inOrder = inOrder(marketDataService, indicatorService, stockUniverseService, scanService, alertService
+        , positionMonitoringService);
         inOrder.verify(marketDataService).refreshAllStocks();
         inOrder.verify(indicatorService).calculateForAllStocks();
         inOrder.verify(stockUniverseService).reEvaluateAllStocks();
         inOrder.verify(scanService).scanAllStocks();
         inOrder.verify(alertService).createAlertsForAllScans();
+        inOrder.verify(positionMonitoringService).monitorAllOpenPositions();
     }
 }

@@ -3,6 +3,7 @@ package com.qullamaggie.tradingsystem.pipeline;
 import com.qullamaggie.tradingsystem.alerts.service.AlertService;
 import com.qullamaggie.tradingsystem.data.service.MarketDataService;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
+import com.qullamaggie.tradingsystem.portfolio.service.PositionMonitoringService;
 import com.qullamaggie.tradingsystem.portfolio.service.StockUniverseService;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.springframework.stereotype.Service;
@@ -19,15 +20,17 @@ public class PipelineService {
     private final ScanService scanService;
     private final AlertService alertService;
     private final StockUniverseService stockUniverseService;
+    private final PositionMonitoringService positionMonitoringService;
 
     public PipelineService(MarketDataService marketDataService,
                            IndicatorService indicatorService, ScanService scanService,
-                           AlertService alertService, StockUniverseService stockUniverseService) {
+                           AlertService alertService, StockUniverseService stockUniverseService, PositionMonitoringService positionMonitoringService) {
         this.marketDataService = marketDataService;
         this.indicatorService = indicatorService;
         this.scanService = scanService;
         this.alertService = alertService;
         this.stockUniverseService = stockUniverseService;
+        this.positionMonitoringService = positionMonitoringService;
     }
 
     /**
@@ -40,6 +43,7 @@ public class PipelineService {
         stockUniverseService.reEvaluateAllStocks();
         scanService.scanAllStocks();
         alertService.createAlertsForAllScans();
+        positionMonitoringService.monitorAllOpenPositions();
     }
 
     /**
@@ -50,6 +54,16 @@ public class PipelineService {
     public void runEpisodicPivotScan() {
         marketDataService.refreshAllStocks();
         indicatorService.calculateForAllStocks();
+        scanService.scanAllStocksForEpisodicPivot();
+        alertService.createAlertsForAllScans();
+    }
+
+    /**
+     * Episodic pivot scan without a redundant daily data refresh - relies on
+     * yesterday's already-fetched daily data plus this run's own live
+     * intraday snapshot per stock.
+     */
+    public void runEpisodicPivotScanOnly() {
         scanService.scanAllStocksForEpisodicPivot();
         alertService.createAlertsForAllScans();
     }
