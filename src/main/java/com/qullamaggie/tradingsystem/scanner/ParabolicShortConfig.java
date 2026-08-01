@@ -13,5 +13,8 @@ public record ParabolicShortConfig(
         BigDecimal smallCapMaxUsd,
         BigDecimal largeCapMinUsd,
         int lookbackDays,
-        int minConsecutiveUpDays
+        int minConsecutiveUpDays,
+        BigDecimal minBreakdownVolumeRatio,
+        BigDecimal minChurnVolumeRatio,
+        BigDecimal maxChurnPricePercent
 ) {}
