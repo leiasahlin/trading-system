@@ -8,6 +8,7 @@ import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.AlertRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
+import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +31,7 @@ class AlertServiceTest {
     @Mock private AlertRepository alertRepository;
     @Mock private PositionSizeCalculator positionSizeCalculator;
     @Mock private MarketDataProvider marketDataProvider;
+    @Mock private MarketRegimeService marketRegimeService;
 
     private AlertService alertService;
     private Stock stock;
@@ -37,11 +39,13 @@ class AlertServiceTest {
     @BeforeEach
     void setUp() {
         alertService = new AlertService(
-                scanResultRepository, indicatorRepository, alertRepository,
-                positionSizeCalculator, marketDataProvider,
-                new BigDecimal("100000"),  // accountSize
-                new BigDecimal("0.01"),    // riskPercent
-                new BigDecimal("0.20"));   // maxPositionPercent
+                        scanResultRepository, indicatorRepository, alertRepository,
+                        positionSizeCalculator, marketDataProvider,
+                        new BigDecimal("100000"),      // accountSize
+                        new BigDecimal("0.20"),        // maxPositionPercent
+                        marketRegimeService,
+                        new BigDecimal("0.005"),       // riskPercentDefensive
+                        new BigDecimal("0.01"));       // riskPercentOffensive
 
         stock = new Stock();
         stock.setSymbol("AAPL");
@@ -96,6 +100,48 @@ class AlertServiceTest {
         alertService.createAlertFromScan(scanResult(SetupType.EPISODIC_PIVOT));
 
         verify(alertRepository).save(any(Alert.class));
+    }
+
+    private MarketRegime regime(RegimeStatus status) {
+        MarketRegime regime = new MarketRegime();
+        regime.setStatus(status);
+        return regime;
+    }
+
+    @Test
+    void usesOffensiveRiskPercent_whenRegimeIsRiskOn() {
+        when(marketRegimeService.getLatest()).thenReturn(Optional.of(regime(RegimeStatus.RISK_ON)));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+
+        alertService.createBreakoutAlert(stock);
+
+        verify(positionSizeCalculator).calculateShares(
+                any(), eq(new BigDecimal("0.01")), any(), any(), any());
+    }
+
+    @Test
+    void usesDefensiveRiskPercent_whenRegimeIsRiskOff() {
+        when(marketRegimeService.getLatest()).thenReturn(Optional.of(regime(RegimeStatus.RISK_OFF)));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+
+        alertService.createBreakoutAlert(stock);
+
+        verify(positionSizeCalculator).calculateShares(
+                any(), eq(new BigDecimal("0.005")), any(), any(), any());
+    }
+
+    @Test
+    void usesDefensiveRiskPercent_whenNoRegimeAssessedYet() {
+        when(marketRegimeService.getLatest()).thenReturn(Optional.empty());
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+
+        alertService.createBreakoutAlert(stock);
+
+        verify(positionSizeCalculator).calculateShares(
+                any(), eq(new BigDecimal("0.005")), any(), any(), any());
     }
 
     private ScanResult scanResult(SetupType type) {

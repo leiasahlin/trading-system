@@ -4,10 +4,10 @@ import com.qullamaggie.tradingsystem.alerts.PositionSizeCalculator;
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.*;
 import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
-import com.qullamaggie.tradingsystem.data.provider.TwelveDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.AlertRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
+import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -30,24 +30,30 @@ public class AlertService {
     private final MarketDataProvider marketDataProvider;
 
     private final BigDecimal accountSize;
-    private final BigDecimal riskPercent;
     private final BigDecimal maxPositionPercent;
+    private final MarketRegimeService marketRegimeService;
+    private final BigDecimal riskPercentDefensive;
+    private final BigDecimal riskPercentOffensive;
 
     public AlertService(ScanResultRepository scanResultRepository,
                         IndicatorRepository indicatorRepository,
                         AlertRepository alertRepository,
                         PositionSizeCalculator positionSizeCalculator, MarketDataProvider marketDataProvider,
                         @Value("${trading.account.size}") BigDecimal accountSize,
-                        @Value("${trading.account.risk-percent}") BigDecimal riskPercent,
-                        @Value("${trading.account.max-position-percent}") BigDecimal maxPositionPercent) {
+                        @Value("${trading.account.max-position-percent}") BigDecimal maxPositionPercent,
+                        MarketRegimeService marketRegimeService,
+                        @Value("${trading.account.risk-percent-defensive}") BigDecimal riskPercentDefensive,
+                        @Value("${trading.account.risk-percent-offensive}") BigDecimal riskPercentOffensive) {
         this.scanResultRepository = scanResultRepository;
         this.indicatorRepository = indicatorRepository;
         this.alertRepository = alertRepository;
         this.positionSizeCalculator = positionSizeCalculator;
         this.marketDataProvider = marketDataProvider;
         this.accountSize = accountSize;
-        this.riskPercent = riskPercent;
         this.maxPositionPercent = maxPositionPercent;
+        this.marketRegimeService = marketRegimeService;
+        this.riskPercentDefensive = riskPercentDefensive;
+        this.riskPercentOffensive = riskPercentOffensive;
     }
 
     /**
@@ -75,11 +81,6 @@ public class AlertService {
 
     /**
      * Creates an episodic pivot alert for the given stock.
-     * <p>
-     * NOT YET IMPLEMENTED. Per the methodology, an EP entry is the Opening Range
-     * High and the stop is the intraday low — both require intraday/pre-market data
-     * that the system does not yet collect. This method is a placeholder to be
-     * completed once the intraday data path is built.
      *
      * @param stock the stock to create an episodic pivot alert for
      */
@@ -106,7 +107,7 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop, maxPositionPercent);
+        int shares = positionSizeCalculator.calculateShares(accountSize, currentRiskPercent(), entry, stop, maxPositionPercent);
 
         Alert alert = new Alert();
         alert.setStock(stock);
@@ -143,7 +144,7 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountSize, riskPercent, entry, stop, maxPositionPercent);
+        int shares = positionSizeCalculator.calculateShares(accountSize, currentRiskPercent(), entry, stop, maxPositionPercent);
 
         Alert alert = new Alert();
         alert.setStock(stock);
@@ -164,5 +165,18 @@ public class AlertService {
         for (ScanResult scan : scans) {
             createAlertFromScan(scan);
         }
+    }
+
+    /**
+     * Risk per trade depends on the market regime: the source specifies a
+     * defensive default with an offensive setting when conditions are
+     * constructive. Falls back to defensive when no regime has been assessed.
+     */
+    private BigDecimal currentRiskPercent() {
+        boolean riskOn = marketRegimeService.getLatest()
+                .map(regime -> regime.getStatus() == RegimeStatus.RISK_ON)
+                .orElse(false);
+
+        return riskOn ? riskPercentOffensive : riskPercentDefensive;
     }
 }
