@@ -40,4 +40,16 @@ public class Alert {
 
     @Column(columnDefinition = "TEXT")
     private String message;
+
+    @Column(name = "entry_price", precision = 12, scale = 4)
+    private BigDecimal entryPrice;
+
+    @Column(name = "stop_price", precision = 12, scale = 4)
+    private BigDecimal stopPrice;
+
+    private Integer shares;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private AlertStatus status = AlertStatus.NEW;
 }

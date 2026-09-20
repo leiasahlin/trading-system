@@ -51,6 +51,32 @@ public class Indicator {
     @Column(name = "volume_avg_20")
     private Long volumeAvg20;
 
+    @Column(name = "volume_avg_50")
+    private Long volumeAvg50;
+
     @Column(name = "prior_move", precision = 8, scale = 4)
     private BigDecimal priorMove;
+
+    @Column(name = "consolidation_range", precision = 8, scale = 4)
+    private BigDecimal consolidationRange;
+
+    @Column(name = "consolidation_high", precision = 12, scale = 4)
+    private BigDecimal consolidationHigh;
+
+    @Column(name = "consolidation_low", precision = 12, scale = 4)
+    private BigDecimal consolidationLow;
+
+    @Column(name = "gap_percent", precision = 8, scale = 4)
+    private BigDecimal gapPercent;
+
+    @Column(name = "relative_volume", precision = 8, scale = 4)
+    private BigDecimal relativeVolume;
+
+    @Column(name = "pullback", precision = 8, scale = 4)
+    private BigDecimal pullback;
+
+    @Column(name = "volume_contraction", precision = 8, scale = 4)
+    private BigDecimal volumeContraction;
+
+    private BigDecimal ema10;
 }

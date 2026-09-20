@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -38,4 +40,15 @@ public class Stock {
 
     @Column(nullable = false,updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    private boolean eligible = false;
+
+    private BigDecimal marketCapUsd;
+
+    private LocalDate marketCapUpdatedAt;
+
+    @Enumerated(EnumType.STRING)
+    private StockType type = StockType.TRADEABLE;
+
+    private String avanzaOrderbookId;
 }

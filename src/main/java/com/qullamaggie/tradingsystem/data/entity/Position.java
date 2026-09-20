@@ -33,15 +33,6 @@ public class Position {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
-    @Column(name = "entry_price", nullable = false, precision = 12, scale = 4)
-    private BigDecimal entryPrice;
-
-    @Column(name = "exit_price", precision = 12, scale = 4)
-    private BigDecimal exitPrice;
-
-    @Column(nullable = false, precision = 12, scale = 4)
-    private BigDecimal shares;
-
     @Column(name = "stop_price", nullable = false, precision = 12, scale = 4)
     private BigDecimal stopPrice;
 
@@ -56,9 +47,15 @@ public class Position {
     @Column(nullable = false, length = 20)
     private PositionStatus status = PositionStatus.OPEN;
 
-    @Column(precision = 12, scale = 4)
-    private BigDecimal pnl;
-
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @Column(name = "initial_stop_price", precision = 12, scale = 4)
+    private BigDecimal initialStopPrice;
+
+    @Column(name = "initial_risk", precision = 12, scale = 4)
+    private BigDecimal initialRisk;
+
+    @Column(name = "outcome_r", precision = 8, scale = 4)
+    private BigDecimal outcomeR;
 }
