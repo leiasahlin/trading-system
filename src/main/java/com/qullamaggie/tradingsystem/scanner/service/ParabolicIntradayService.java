@@ -47,7 +47,7 @@ public class ParabolicIntradayService {
         // 3 dagar bakåt så fredagens kvällsscan fortfarande gäller på måndagen
         LocalDateTime since = LocalDateTime.now().minusDays(3);
         for (ScanResult scan : scanResultRepository
-                .findBySetupTypeAndCreatedAtAfter(SetupType.PARABOLIC_SHORT, since)) {
+                .findBySetupTypeAndScannedAtAfter(SetupType.PARABOLIC_SHORT, since)) {
             checkCandidate(scan.getStock());
         }
     }

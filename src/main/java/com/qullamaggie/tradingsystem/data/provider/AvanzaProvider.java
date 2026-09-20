@@ -8,6 +8,7 @@ import dev.samstevens.totp.code.HashingAlgorithm;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.CookieManager;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -26,68 +27,6 @@ public class AvanzaProvider implements PortfolioDataProvider {
 
     public AvanzaProvider(AvanzaConfig config) {
         this.config = config;
-    }
-
-    @Override
-    public List<PortfolioHolding> fetchHoldings() {
-        JsonNode positions = fetchPositions();
-
-        // OBS EJ VERIFIERAT: fältnamnen nedan kommer från en tredjeparts-SDK mot samma
-        // endpoint (withOrderbook / account.id / volume.value / averageAcquiredPrice.value
-        // / value.value / instrument). Verifiera mot ett riktigt svar i Network-fliken
-        // och justera vid behov.
-        List<PortfolioHolding> holdings = new ArrayList<>();
-        for (JsonNode p : positions.path("withOrderbook")) {
-            if (!config.accountId().equals(p.path("account").path("id").asText())) {
-                continue;
-            }
-            JsonNode instrument = p.path("instrument");
-            holdings.add(new PortfolioHolding(
-                    instrument.path("orderbookId").asText(),
-                    instrument.path("name").asText(),
-                    p.path("volume").path("value").asInt(),
-                    decimal(p.path("averageAcquiredPrice").path("value")),
-                    decimal(instrument.path("orderbook").path("quote").path("latest").path("value")),
-                    decimal(p.path("value").path("value"))
-            ));
-        }
-        return holdings;
-    }
-
-    @Override
-    public BigDecimal fetchAccountValue() {
-        // Designval (säg till om du hellre vill annat): kontovärdet härleds ur SAMMA
-        // positions-svar som fetchHoldings - innehavens värde + likvida medel för kontot -
-        // istället för att verifiera och underhålla en andra endpoint (categorizedAccounts).
-        JsonNode positions = fetchPositions();
-        BigDecimal total = BigDecimal.ZERO;
-
-        for (JsonNode p : positions.path("withOrderbook")) {
-            if (config.accountId().equals(p.path("account").path("id").asText())) {
-                total = total.add(decimal(p.path("value").path("value")));
-            }
-        }
-        for (JsonNode cash : positions.path("cashPositions")) {
-            if (config.accountId().equals(cash.path("account").path("id").asText())) {
-                total = total.add(decimal(cash.path("totalBalance").path("value"))); // EJ VERIFIERAT fältnamn
-            }
-        }
-        return total;
-    }
-
-    private JsonNode fetchPositions() {
-        // Ny klient per anrop = ny session per pipeline-körning (beslutat: ingen cachning).
-        // CookieManager är Javas motsvarighet till Pythons requests.Session() -
-        // cookies från inloggningssteg 1 följer automatiskt med i steg 2 och alla anrop efter.
-        HttpClient client = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
-        String securityToken = authenticate(client);
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "/_api/position-data/positions"))
-                .header("X-SecurityToken", securityToken)
-                .GET()
-                .build();
-        return send(client, request, "positions");
     }
 
     private String authenticate(HttpClient client) {
@@ -145,5 +84,63 @@ public class AvanzaProvider implements PortfolioDataProvider {
 
     private BigDecimal decimal(JsonNode node) {
         return node.isMissingNode() || node.isNull() ? null : new BigDecimal(node.asText());
+    }
+
+    @Override
+    public List<PortfolioHolding> fetchHoldings() {
+        List<PortfolioHolding> holdings = new ArrayList<>();
+        for (JsonNode p : fetchPositions().path("withOrderbook")) {
+            JsonNode instrument = p.path("instrument");
+            BigDecimal marketValue = decimal(p.path("value").path("value"));
+            int shares = p.path("volume").path("value").asInt();
+
+            holdings.add(new PortfolioHolding(
+                    instrument.path("isin").asText(null),
+                    instrument.path("name").asText(null),
+                    shares,
+                    decimal(p.path("averageAcquiredPrice").path("value")),
+                    // Avanza returnerar ingen kurs per aktie - härleds ur marknadsvärdet
+                    shares > 0 && marketValue != null
+                            ? marketValue.divide(BigDecimal.valueOf(shares), 4, RoundingMode.HALF_UP)
+                            : null,
+                    marketValue));
+        }
+        return holdings;
+    }
+
+    @Override
+    public BigDecimal fetchAccountValue() {
+        // Svaret är redan filtrerat till kontot i URL:en, så allt i det summeras:
+        // innehavens marknadsvärde plus likvida medel.
+        JsonNode positions = fetchPositions();
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (JsonNode p : positions.path("withOrderbook")) {
+            BigDecimal value = decimal(p.path("value").path("value"));
+            if (value != null) {
+                total = total.add(value);
+            }
+        }
+        for (JsonNode cash : positions.path("cashPositions")) {
+            BigDecimal balance = decimal(cash.path("totalBalance").path("value"));
+            if (balance != null) {
+                total = total.add(balance);
+            }
+        }
+        return total;
+    }
+
+    private JsonNode fetchPositions() {
+        HttpClient client = HttpClient.newBuilder().cookieHandler(new CookieManager()).build();
+        String securityToken = authenticate(client);
+
+        // Kontots urlParameterId ligger i sökvägen - svaret gäller då bara det kontot,
+        // så ingen filtrering på account.id behövs i parsningen.
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(BASE_URL + "/_api/position-data/positions/" + config.accountId()))
+                .header("X-SecurityToken", securityToken)
+                .GET()
+                .build();
+        return send(client, request, "positions");
     }
 }

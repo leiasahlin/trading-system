@@ -2,6 +2,8 @@ package com.qullamaggie.tradingsystem.data.provider;
 
 import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
+import com.qullamaggie.tradingsystem.data.dto.Quote;
+import com.qullamaggie.tradingsystem.data.dto.SymbolInfo;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -205,5 +207,56 @@ public class TwelveDataProvider implements MarketDataProvider {
 
         bars.sort(Comparator.comparing(IntradayBar::time));   // äldst först, som resten av systemet
         return bars;
+    }
+
+    @Override
+    public List<SymbolInfo> fetchSymbols(String exchange) {
+        String json = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/stocks")
+                        .queryParam("exchange", exchange)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .body(String.class);
+
+        List<SymbolInfo> symbols = new ArrayList<>();
+        try {
+            for (JsonNode node : new ObjectMapper().readTree(json).path("data")) {
+                symbols.add(new SymbolInfo(
+                        node.path("symbol").asText(),
+                        node.path("name").asText(),
+                        node.path("isin").asText(null),
+                        node.path("type").asText(),
+                        node.path("exchange").asText()));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Twelve Data symbol list for " + exchange, e);
+        }
+        return symbols;
+    }
+
+    @Override
+    public Quote fetchQuote(String symbol) {
+        String json = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/quote")
+                        .queryParam("symbol", symbol)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .body(String.class);
+
+        try {
+            JsonNode root = new ObjectMapper().readTree(json);
+            JsonNode close = root.path("close");
+            JsonNode volume = root.path("volume");
+            if (close.isMissingNode() || volume.isMissingNode()) {
+                return null;   // t.ex. handelsstopp eller okänd symbol
+            }
+            return new Quote(symbol, new BigDecimal(close.asText()), Long.parseLong(volume.asText()));
+        } catch (Exception e) {
+            return null;   // en trasig symbol ska inte stoppa hela genomsökningen
+        }
     }
 }

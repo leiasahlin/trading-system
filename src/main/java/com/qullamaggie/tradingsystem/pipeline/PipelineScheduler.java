@@ -3,6 +3,7 @@ package com.qullamaggie.tradingsystem.pipeline;
 import com.qullamaggie.tradingsystem.portfolio.service.IntradayMonitoringService;
 import com.qullamaggie.tradingsystem.scanner.*;
 import com.qullamaggie.tradingsystem.scanner.service.ParabolicIntradayService;
+import com.qullamaggie.tradingsystem.universe.service.MarketDiscoveryService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -14,12 +15,14 @@ public class PipelineScheduler {
     private final PipelineService pipelineService;
     private final IntradayMonitoringService intradayMonitoringService;
     private final ParabolicIntradayService parabolicIntradayService;
+    private final MarketDiscoveryService marketDiscoveryService;
 
     public PipelineScheduler(PipelineService pipelineService, IntradayMonitoringService intradayMonitoringService,
-                             ParabolicIntradayService parabolicIntradayService) {
+                             ParabolicIntradayService parabolicIntradayService, MarketDiscoveryService marketDiscoveryService) {
         this.pipelineService = pipelineService;
         this.intradayMonitoringService = intradayMonitoringService;
         this.parabolicIntradayService = parabolicIntradayService;
+        this.marketDiscoveryService = marketDiscoveryService;
     }
 
     /**
@@ -53,6 +56,17 @@ public class PipelineScheduler {
             return;
         }
         intradayMonitoringService.checkAllOpenPositions();
+    }
+
+    /**
+     * Weekly market-wide discovery. The symbol universe changes slowly and a stock
+     * that fails the screen today rarely passes tomorrow, so weekly keeps API usage
+     * down without missing much. Runs Sunday evening so the week starts with a
+     * current candidate list.
+     */
+    @Scheduled(cron = "0 0 18 * * SUN", zone = "America/New_York")
+    public void runMarketDiscovery() {
+        marketDiscoveryService.discoverAndSaveCandidates();
     }
 
     @Scheduled(cron = "0 */5 9-16 * * MON-FRI", zone = "America/New_York")

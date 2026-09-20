@@ -51,4 +51,6 @@ public class Stock {
     private StockType type = StockType.TRADEABLE;
 
     private String avanzaOrderbookId;
+
+    private String isin;
 }

@@ -9,5 +9,5 @@ import java.util.List;
 
 public interface ScanResultRepository extends JpaRepository<ScanResult, Long> {
     List<ScanResult> findBySetupType (SetupType setupType);
-    List<ScanResult> findBySetupTypeAndCreatedAtAfter(SetupType setupType, LocalDateTime since);
+    List<ScanResult> findBySetupTypeAndScannedAtAfter(SetupType setupType, LocalDateTime since);
 }

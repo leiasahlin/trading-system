@@ -50,7 +50,7 @@ class ParabolicIntradayServiceTest {
         ScanResult scan = new ScanResult();
         scan.setStock(stock);
         scan.setSetupType(SetupType.PARABOLIC_SHORT);
-        when(scanResultRepository.findBySetupTypeAndCreatedAtAfter(eq(SetupType.PARABOLIC_SHORT), any()))
+        when(scanResultRepository.findBySetupTypeAndScannedAtAfter(eq(SetupType.PARABOLIC_SHORT), any()))
                 .thenReturn(List.of(scan));
     }
 

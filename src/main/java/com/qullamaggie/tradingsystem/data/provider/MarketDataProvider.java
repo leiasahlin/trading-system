@@ -2,6 +2,8 @@ package com.qullamaggie.tradingsystem.data.provider;
 
 import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
+import com.qullamaggie.tradingsystem.data.dto.Quote;
+import com.qullamaggie.tradingsystem.data.dto.SymbolInfo;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 
 import java.math.BigDecimal;
@@ -46,4 +48,10 @@ public interface MarketDataProvider {
      * Interval is provider-configured (5min for the monitoring loop).
      */
     List<IntradayBar> fetchIntradayBars(String symbol);
+
+    /** All listed symbols on the given exchange (reference data, one call per exchange). */
+    List<SymbolInfo> fetchSymbols(String exchange);
+
+    /** Latest close and volume for one symbol, or null if unavailable. */
+    Quote fetchQuote(String symbol);
 }
