@@ -17,5 +17,6 @@ public record ParabolicShortConfig(
         BigDecimal minBreakdownVolumeRatio,
         BigDecimal minChurnVolumeRatio,
         BigDecimal maxChurnPricePercent,
-        BigDecimal stopMarginPercent
+        BigDecimal stopMarginPercent,
+        int openingRangeMinutes
 ) {}

@@ -4,5 +4,6 @@ public enum PositionAlertType {
     TRIM,
     MOVE_STOP_TO_BREAKEVEN,
     TRAILING_STOP_UPDATE,
-    EXIT
+    EXIT,
+    STOP_BREACH
 }

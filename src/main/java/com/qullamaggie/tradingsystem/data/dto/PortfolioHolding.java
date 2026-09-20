@@ -7,14 +7,16 @@ import java.math.BigDecimal;
  * Represents what is currently owned — quantity and cost basis
  * come from the broker, not from the system's own records.
  *
- * @param symbol       ticker symbol of the held stock
+ * @param avanzaOrderbookId
+ * @param name       ticker symbol of the held stock
  * @param shares       number of shares currently held
  * @param averagePrice average purchase price per share
  * @param currentPrice current market price per share
  * @param marketValue  current total value of the holding
  */
 public record PortfolioHolding(
-        String symbol,
+        String avanzaOrderbookId,
+        String name,
         int shares,
         BigDecimal averagePrice,
         BigDecimal currentPrice,

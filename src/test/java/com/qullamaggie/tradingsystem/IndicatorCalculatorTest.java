@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem;
 
+import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -286,5 +288,33 @@ public class IndicatorCalculatorTest {
         BigDecimal ema = calculator.calculateEMA(closes, 3);
 
         assertEquals(0, BigDecimal.valueOf(25).compareTo(ema));
+    }
+
+    @Test
+    void calculateVWAP_weightsPriceByVolume() {
+        // Stapel A: typiskt pris (10+10+10)/3=10, volym 100 -> bidrag 1000
+        // Stapel B: typiskt pris (20+20+20)/3=20, volym 300 -> bidrag 6000
+        // VWAP = 7000/400 = 17.5 (närmare B som har större volym)
+        List<IntradayBar> bars = List.of(
+                bar("10", "10", "10", 100),
+                bar("20", "20", "20", 300));
+
+        assertEquals(0, new BigDecimal("17.5").compareTo(calculator.calculateVWAP(bars)));
+    }
+
+    @Test
+    void calculateVWAP_returnsNull_whenNoBars() {
+        assertNull(calculator.calculateVWAP(List.of()));
+    }
+
+    @Test
+    void calculateVWAP_returnsNull_whenTotalVolumeIsZero() {
+        assertNull(calculator.calculateVWAP(List.of(bar("10", "10", "10", 0))));
+    }
+
+    private IntradayBar bar(String high, String low, String close, long volume) {
+        return new IntradayBar(LocalDateTime.of(2026, 8, 3, 9, 35),
+                new BigDecimal(close), new BigDecimal(high), new BigDecimal(low),
+                new BigDecimal(close), volume);
     }
 }

@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.indicators;
 
+import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
@@ -196,5 +197,30 @@ public class IndicatorCalculator {
         }
 
         return ema;
+    }
+
+    /**
+     * Volume-weighted average price over the given bars: each bar contributes its
+     * typical price (H+L+C)/3 weighted by volume. The methodology's parabolic
+     * exit trigger is a failed reclaim of this level.
+     */
+    public BigDecimal calculateVWAP(List<IntradayBar> bars) {
+        if (bars.isEmpty()) {
+            return null;
+        }
+        BigDecimal weightedSum = BigDecimal.ZERO;
+        BigDecimal totalVolume = BigDecimal.ZERO;
+
+        for (IntradayBar bar : bars) {
+            BigDecimal typicalPrice = bar.high().add(bar.low()).add(bar.close())
+                    .divide(BigDecimal.valueOf(3), 4, RoundingMode.HALF_UP);
+            BigDecimal volume = BigDecimal.valueOf(bar.volume());
+            weightedSum = weightedSum.add(typicalPrice.multiply(volume));
+            totalVolume = totalVolume.add(volume);
+        }
+        if (totalVolume.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        return weightedSum.divide(totalVolume, 4, RoundingMode.HALF_UP);
     }
 }

@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.data.provider;
 
+import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 
@@ -39,4 +40,10 @@ public interface MarketDataProvider {
      * in the free plan.
      */
     BigDecimal fetchMarketCap(String symbol);
+
+    /**
+     * Fetches today's completed intraday bars, oldest first, New York time.
+     * Interval is provider-configured (5min for the monitoring loop).
+     */
+    List<IntradayBar> fetchIntradayBars(String symbol);
 }

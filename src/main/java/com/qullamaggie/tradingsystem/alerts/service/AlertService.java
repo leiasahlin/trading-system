@@ -6,6 +6,7 @@ import com.qullamaggie.tradingsystem.data.entity.*;
 import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.AlertRepository;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
+import com.qullamaggie.tradingsystem.scanner.ParabolicTriggerType;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
@@ -85,7 +86,7 @@ public class AlertService {
         switch (scanResult.getSetupType()) {
             case BREAKOUT -> createBreakoutAlert(stock);
             case EPISODIC_PIVOT -> createEpisodicPivotAlert(stock);
-            case PARABOLIC_SHORT -> createParabolicShortAlert(stock);
+            case PARABOLIC_SHORT -> { /* alerts skapas enbart intradag, vid bekräftad trigger */ }
         }
     }
 
@@ -192,40 +193,21 @@ public class AlertService {
     }
 
     /**
-     * Creates a parabolic short alert for the given stock.
-     * <p>
-     * Stop is placed just above the highest high of the run-up, per the source.
-     * Entry is approximated with the latest close: the methodology's actual
-     * triggers are intraday (a break below the opening range low, or a failed
-     * reclaim of VWAP), which requires intraday data the system does not yet
-     * collect. Replace determineEntryPrice() once that path exists.
-     *
-     * @param stock the stock to create a parabolic short alert for
+     * Creates a parabolic short alert at a confirmed intraday trigger. Entry is the
+     * actual trigger level; stop sits just above the run-up high. Called by
+     * ParabolicIntradayService, never from the evening pipeline.
      */
-    private void createParabolicShortAlert(Stock stock) {
+    public void createParabolicShortAlert(Stock stock, ParabolicTriggerType trigger, BigDecimal entry) {
         Optional<Indicator> latestIndicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
-        if (latestIndicator.isEmpty()) {
-            return;
-        }
-        Indicator indicator = latestIndicator.get();
-
         List<DailyPrice> prices = dailyPriceRepository.findByStockOrderByDateDesc(stock);
-        if (prices.size() < parabolicLookbackDays) {
-            return;
-        }
-        List<DailyPrice> window = prices.subList(0, parabolicLookbackDays);
-
-        BigDecimal entry = determineEntryPrice(window);
-        BigDecimal stop = determineStopPrice(window);
-
-        if (entry == null || stop == null) {
+        if (latestIndicator.isEmpty() || prices.size() < parabolicLookbackDays) {
             return;
         }
 
+        BigDecimal stop = determineStopPrice(prices.subList(0, parabolicLookbackDays));
         BigDecimal riskDistancePercent = entry.subtract(stop).abs()
-                .divide(entry, 4, RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100));
-        if (riskDistancePercent.compareTo(indicator.getAdr20()) > 0) {
+                .divide(entry, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+        if (riskDistancePercent.compareTo(latestIndicator.get().getAdr20()) > 0) {
             return;
         }
 
@@ -234,26 +216,15 @@ public class AlertService {
 
         Alert alert = new Alert();
         alert.setStock(stock);
-        alert.setType("PARABOLIC_SHORT");
+        alert.setType(trigger.alertType());
         alert.setEntryPrice(entry);
         alert.setStopPrice(stop);
         alert.setShares(shares);
         alert.setPrice(entry);
-        alert.setMessage("Parabolic short: " + shares + " shares, entry " + entry
-                + ", stop " + stop + " (entry approximated from daily close)");
+        alert.setMessage("Parabolic short (" + trigger + "): " + shares + " shares, entry " + entry + ", stop " + stop);
         alertRepository.save(alert);
     }
 
-    /**
-     * APPROXIMATION: the latest close stands in for the intraday entry trigger.
-     * When intraday data is available, this should instead return the opening
-     * range low or the VWAP reclaim level.
-     *
-     * @param window lookback window, newest first
-     */
-    private BigDecimal determineEntryPrice(List<DailyPrice> window) {
-        return window.getFirst().getClose();
-    }
 
     /**
      * Stop sits just above the highest high of the run-up, per the source.

@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.data.provider;
 
+import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -163,5 +165,45 @@ public class TwelveDataProvider implements MarketDataProvider {
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse Twelve Data statistics response for " + symbol, e);
         }
+    }
+
+    @Override
+    public List<IntradayBar> fetchIntradayBars(String symbol) {
+        String json = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/time_series")
+                        .queryParam("symbol", symbol)
+                        .queryParam("interval", "5min")
+                        .queryParam("outputsize", 100)          // täcker en hel handelsdag (78 staplar)
+                        .queryParam("timezone", "America/New_York")
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .body(String.class);
+
+        LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        List<IntradayBar> bars = new ArrayList<>();
+
+        try {
+            JsonNode values = new ObjectMapper().readTree(json).get("values");
+            for (JsonNode bar : values) {
+                LocalDateTime time = LocalDateTime.parse(bar.get("datetime").asText(), formatter);
+                if (!time.toLocalDate().equals(today)) {
+                    continue;
+                }
+                bars.add(new IntradayBar(time,
+                        new BigDecimal(bar.get("open").asText()),
+                        new BigDecimal(bar.get("high").asText()),
+                        new BigDecimal(bar.get("low").asText()),
+                        new BigDecimal(bar.get("close").asText()),
+                        Long.parseLong(bar.get("volume").asText())));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Twelve Data intraday bars for " + symbol, e);
+        }
+
+        bars.sort(Comparator.comparing(IntradayBar::time));   // äldst först, som resten av systemet
+        return bars;
     }
 }

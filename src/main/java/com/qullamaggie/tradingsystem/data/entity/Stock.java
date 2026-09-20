@@ -49,4 +49,6 @@ public class Stock {
 
     @Enumerated(EnumType.STRING)
     private StockType type = StockType.TRADEABLE;
+
+    private String avanzaOrderbookId;
 }

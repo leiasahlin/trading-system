@@ -37,7 +37,8 @@ class ParabolicShortEvaluatorTest {
                 BigDecimal.valueOf(1.5),                // minBreakdownVolumeRatio
                 BigDecimal.valueOf(2.0),                // minChurnVolumeRatio
                 BigDecimal.valueOf(2),                  // maxChurnPricePercent
-                BigDecimal.valueOf(0.5));               // stopMarginPercent
+                BigDecimal.valueOf(0.5),                // stopMarginPercent
+                15);                                    // openingRangeMinutes
 
         evaluator = new ParabolicShortEvaluator(config, new IndicatorCalculator());
     }

@@ -10,7 +10,7 @@ import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
-import com.qullamaggie.tradingsystem.scanner.ParabolicShortConfig;
+import com.qullamaggie.tradingsystem.scanner.ParabolicTriggerType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -154,23 +155,34 @@ class AlertServiceTest {
     }
 
     @Test
-    void shouldCreateParabolicShortAlert_withStopAboveTheRunUpHigh() {
-        when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(false);
+    void createParabolicShortAlert_usesTriggerLevelAsEntry_andStopAboveRunUpHigh() {
         when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
                 .thenReturn(Optional.of(indicatorWith("310", "300", "10")));
-        when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
-                .thenReturn(parabolicPrices());
-        when(positionSizeCalculator.calculateShares(any(), any(), any(), any(), any()))
-                .thenReturn(30);
+        when(dailyPriceRepository.findByStockOrderByDateDesc(stock)).thenReturn(parabolicPrices());
+        when(positionSizeCalculator.calculateShares(any(), any(), any(), any(), any())).thenReturn(30);
 
-        alertService.createAlertFromScan(scanResult(SetupType.PARABOLIC_SHORT));
+        alertService.createParabolicShortAlert(stock, ParabolicTriggerType.OPENING_RANGE_LOW_BREAK,
+                new BigDecimal("299"));
 
         ArgumentCaptor<Alert> captor = ArgumentCaptor.forClass(Alert.class);
         verify(alertRepository).save(captor.capture());
-
         Alert alert = captor.getValue();
-        // Stoppen ska ligga ÖVER entry vid en blankning, till skillnad från långa setuper
+        assertEquals("PARABOLIC_SHORT_OPENING_RANGE_LOW_BREAK", alert.getType());
+        assertEquals(0, new BigDecimal("299").compareTo(alert.getEntryPrice()));
         assertTrue(alert.getStopPrice().compareTo(alert.getEntryPrice()) > 0);
+    }
+
+    @Test
+    void createParabolicShortAlert_rejectsWhenRiskDistanceExceedsAdr() {
+        // Entry 280 mot stop ≈ 303.5 = ~8.4% riskavstånd, ADR bara 5 → förkastas
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+        when(dailyPriceRepository.findByStockOrderByDateDesc(stock)).thenReturn(parabolicPrices());
+
+        alertService.createParabolicShortAlert(stock, ParabolicTriggerType.FAILED_VWAP_RECLAIM,
+                new BigDecimal("280"));
+
+        verify(alertRepository, never()).save(any());
     }
 
     private List<DailyPrice> parabolicPrices() {
