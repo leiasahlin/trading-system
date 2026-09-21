@@ -31,16 +31,33 @@ public class AvanzaProvider implements PortfolioDataProvider {
 
     private String authenticate(HttpClient client) {
         String credentialsBody = """
-                {"maxInactiveMinutes": 1440, "username": "%s", "password": "%s"}"""
+            {"maxInactiveMinutes": 1440, "username": "%s", "password": "%s"}"""
                 .formatted(config.username(), config.password());
-        send(client, jsonPost("/_api/authentication/sessions/usercredentials", credentialsBody), "login step 1");
+        HttpResponse<String> step1 = sendRaw(client,
+                jsonPost("/_api/authentication/sessions/usercredentials", credentialsBody), "login step 1");
+
+        // Kräver kontot ingen andra faktor är inloggningen klar redan här
+        if (!readJson(step1).has("twoFactorLogin")) {
+            return securityToken(step1);
+        }
 
         String totpBody = """
-                {"method": "TOTP", "totpCode": "%s"}""".formatted(generateTotpCode());
-        HttpResponse<String> response = sendRaw(client, jsonPost("/_api/authentication/sessions/totp", totpBody), "login step 2");
+            {"method": "TOTP", "totpCode": "%s"}""".formatted(generateTotpCode());
+        return securityToken(sendRaw(client,
+                jsonPost("/_api/authentication/sessions/totp", totpBody), "login step 2"));
+    }
 
+    private String securityToken(HttpResponse<String> response) {
         return response.headers().firstValue("X-SecurityToken")
                 .orElseThrow(() -> new IllegalStateException("Avanza-inloggning gav ingen X-SecurityToken"));
+    }
+
+    private JsonNode readJson(HttpResponse<String> response) {
+        try {
+            return mapper.readTree(response.body());
+        } catch (Exception e) {
+            throw new IllegalStateException("Kunde inte tolka Avanza-svar", e);
+        }
     }
 
     private String generateTotpCode() {
@@ -57,24 +74,21 @@ public class AvanzaProvider implements PortfolioDataProvider {
         return HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + path))
                 .header("Content-Type", "application/json")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
     }
 
     private JsonNode send(HttpClient client, HttpRequest request, String description) {
-        try {
-            return mapper.readTree(sendRaw(client, request, description).body());
-        } catch (Exception e) {
-            throw new IllegalStateException("Kunde inte tolka Avanza-svar för " + description, e);
-        }
+        return readJson(sendRaw(client, request, description));
     }
 
     private HttpResponse<String> sendRaw(HttpClient client, HttpRequest request, String description) {
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
-                throw new IllegalStateException(
-                        "Avanza svarade " + response.statusCode() + " för " + description);
+                throw new IllegalStateException("Avanza svarade " + response.statusCode()
+                        + " för " + description + ": " + response.body());
             }
             return response;
         } catch (java.io.IOException | InterruptedException e) {
@@ -139,6 +153,7 @@ public class AvanzaProvider implements PortfolioDataProvider {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/_api/position-data/positions/" + config.accountId()))
                 .header("X-SecurityToken", securityToken)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                 .GET()
                 .build();
         return send(client, request, "positions");
