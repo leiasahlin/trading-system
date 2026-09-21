@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.alerts.service;
 
+import com.qullamaggie.tradingsystem.alerts.AccountConfig;
 import com.qullamaggie.tradingsystem.alerts.PositionSizeCalculator;
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
 import com.qullamaggie.tradingsystem.data.entity.*;
@@ -32,23 +33,19 @@ public class AlertService {
     private final MarketDataProvider marketDataProvider;
     private final DailyPriceRepository dailyPriceRepository;
 
-    private final BigDecimal accountSize;
-    private final BigDecimal maxPositionPercent;
     private final MarketRegimeService marketRegimeService;
-    private final BigDecimal riskPercentDefensive;
-    private final BigDecimal riskPercentOffensive;
+    private final AccountConfig accountConfig;
     private final int parabolicLookbackDays;
     private final BigDecimal parabolicStopMarginPercent;
 
     public AlertService(ScanResultRepository scanResultRepository,
                         IndicatorRepository indicatorRepository,
                         AlertRepository alertRepository,
-                        PositionSizeCalculator positionSizeCalculator, MarketDataProvider marketDataProvider, DailyPriceRepository dailyPriceRepository,
-                        @Value("${trading.account.size}") BigDecimal accountSize,
-                        @Value("${trading.account.max-position-percent}") BigDecimal maxPositionPercent,
+                        PositionSizeCalculator positionSizeCalculator,
+                        MarketDataProvider marketDataProvider,
+                        DailyPriceRepository dailyPriceRepository,
                         MarketRegimeService marketRegimeService,
-                        @Value("${trading.account.risk-percent-defensive}") BigDecimal riskPercentDefensive,
-                        @Value("${trading.account.risk-percent-offensive}") BigDecimal riskPercentOffensive,
+                        AccountConfig accountConfig,
                         @Value("${trading.scanner.parabolic.lookback-days}") int parabolicLookbackDays,
                         @Value("${trading.scanner.parabolic.stop-margin-percent}") BigDecimal parabolicStopMarginPercent) {
         this.scanResultRepository = scanResultRepository;
@@ -57,15 +54,11 @@ public class AlertService {
         this.positionSizeCalculator = positionSizeCalculator;
         this.marketDataProvider = marketDataProvider;
         this.dailyPriceRepository = dailyPriceRepository;
-        this.accountSize = accountSize;
-        this.maxPositionPercent = maxPositionPercent;
         this.marketRegimeService = marketRegimeService;
-        this.riskPercentDefensive = riskPercentDefensive;
-        this.riskPercentOffensive = riskPercentOffensive;
+        this.accountConfig = accountConfig;
         this.parabolicLookbackDays = parabolicLookbackDays;
         this.parabolicStopMarginPercent = parabolicStopMarginPercent;
     }
-
     /**
      * Creates an alert from a single scan result.
      * Skips the scan if a pending (NEW) alert already exists for the stock,
@@ -118,8 +111,8 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountSize, currentRiskPercent(), entry,
-                stop, maxPositionPercent);
+        int shares = positionSizeCalculator.calculateShares(accountConfig.size(), currentRiskPercent(), entry,
+                stop, accountConfig.maxPositionPercent());
 
         Alert alert = new Alert();
         alert.setStock(stock);
@@ -156,7 +149,8 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountSize, currentRiskPercent(), entry, stop, maxPositionPercent);
+        int shares = positionSizeCalculator.calculateShares(accountConfig.size(), currentRiskPercent(), entry,
+                stop, accountConfig.maxPositionPercent());
 
         Alert alert = new Alert();
         alert.setStock(stock);
@@ -189,7 +183,7 @@ public class AlertService {
                 .map(regime -> regime.getStatus() == RegimeStatus.RISK_ON)
                 .orElse(false);
 
-        return riskOn ? riskPercentOffensive : riskPercentDefensive;
+        return riskOn ? accountConfig.riskPercentOffensive() : accountConfig.riskPercentDefensive();
     }
 
     /**
@@ -212,7 +206,7 @@ public class AlertService {
         }
 
         int shares = positionSizeCalculator.calculateShares(
-                accountSize, currentRiskPercent(), entry, stop, maxPositionPercent);
+                accountConfig.size(), currentRiskPercent(), entry, stop, accountConfig.maxPositionPercent());
 
         Alert alert = new Alert();
         alert.setStock(stock);

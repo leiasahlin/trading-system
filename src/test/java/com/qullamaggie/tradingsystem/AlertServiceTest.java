@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem;
 
+import com.qullamaggie.tradingsystem.alerts.AccountConfig;
 import com.qullamaggie.tradingsystem.alerts.PositionSizeCalculator;
 import com.qullamaggie.tradingsystem.alerts.service.AlertService;
 import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
@@ -46,16 +47,18 @@ class AlertServiceTest {
 
     @BeforeEach
     void setUp() {
+        AccountConfig accountConfig = new AccountConfig(
+                new BigDecimal("100000"),   // size
+                new BigDecimal("0.20"),     // maxPositionPercent
+                new BigDecimal("0.005"),    // riskPercentDefensive
+                new BigDecimal("0.01"));    // riskPercentOffensive
+
         alertService = new AlertService(
                 scanResultRepository, indicatorRepository, alertRepository,
                 positionSizeCalculator, marketDataProvider, dailyPriceRepository,
-                new BigDecimal("100000"),      // accountSize
-                new BigDecimal("0.20"),        // maxPositionPercent
-                marketRegimeService,
-                new BigDecimal("0.005"),       // riskPercentDefensive
-                new BigDecimal("0.01"),        // riskPercentOffensive
-                15,                                 // parabolicLookbackDays
-                new BigDecimal("0.5"));        // parabolicStopMarginPercent
+                marketRegimeService, accountConfig,
+                15,                          // parabolicLookbackDays
+                new BigDecimal("0.5"));      // parabolicStopMarginPercent
 
         stock = new Stock();
         stock.setSymbol("AAPL");
