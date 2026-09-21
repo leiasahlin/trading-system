@@ -1,6 +1,7 @@
 package com.qullamaggie.tradingsystem.data.provider;
 
 import com.qullamaggie.tradingsystem.data.dto.PortfolioHolding;
+import com.qullamaggie.tradingsystem.data.dto.PortfolioSnapshot;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -13,18 +14,14 @@ import java.util.List;
  */
 public interface PortfolioDataProvider {
 
-    /**
-     * Fetches all current holdings in the portfolio.
-     *
-     * @return list of current holdings, empty if nothing is held
-     */
-    List<PortfolioHolding> fetchHoldings();
+    /** Holdings and account value from ONE login/fetch - use when both are needed. */
+    PortfolioSnapshot fetchSnapshot();
 
-    /**
-     * Fetches the total gross value of the account, including cash and holdings.
-     * Used for position sizing and exposure checks.
-     *
-     * @return the account's total value
-     */
-    public BigDecimal fetchAccountValue();
+    default List<PortfolioHolding> fetchHoldings() {
+        return fetchSnapshot().holdings();
+    }
+
+    default BigDecimal fetchAccountValue() {
+        return fetchSnapshot().accountValue();
+    }
 }

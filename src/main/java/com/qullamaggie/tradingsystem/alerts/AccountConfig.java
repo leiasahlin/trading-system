@@ -14,13 +14,20 @@ public record AccountConfig(
         BigDecimal size,
         BigDecimal maxPositionPercent,
         BigDecimal riskPercentDefensive,
-        BigDecimal riskPercentOffensive
+        BigDecimal riskPercentOffensive,
+        BigDecimal maxOvernightPositionPercent,
+        BigDecimal overnightTrimTargetPercent
 ) {
     public AccountConfig {
         if (riskPercentOffensive.compareTo(riskPercentDefensive) < 0) {
             throw new IllegalArgumentException(
                     "riskPercentOffensive får inte vara lägre än riskPercentDefensive, var: "
                             + riskPercentOffensive + " och " + riskPercentDefensive);
+        }
+        if (overnightTrimTargetPercent.compareTo(maxOvernightPositionPercent) >= 0) {
+            throw new IllegalArgumentException(
+                    "overnightTrimTargetPercent måste vara lägre än maxOvernightPositionPercent, var: "
+                            + overnightTrimTargetPercent + " och " + maxOvernightPositionPercent);
         }
     }
 }

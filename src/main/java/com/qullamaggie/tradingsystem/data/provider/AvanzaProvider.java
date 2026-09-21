@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.data.provider;
 
+import com.qullamaggie.tradingsystem.data.dto.PortfolioSnapshot;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.qullamaggie.tradingsystem.data.dto.PortfolioHolding;
@@ -101,9 +102,14 @@ public class AvanzaProvider implements PortfolioDataProvider {
     }
 
     @Override
-    public List<PortfolioHolding> fetchHoldings() {
+    public PortfolioSnapshot fetchSnapshot() {
+        JsonNode positions = fetchPositions();
+        return new PortfolioSnapshot(parseHoldings(positions), parseAccountValue(positions));
+    }
+
+    private List<PortfolioHolding> parseHoldings(JsonNode positions) {
         List<PortfolioHolding> holdings = new ArrayList<>();
-        for (JsonNode p : fetchPositions().path("withOrderbook")) {
+        for (JsonNode p : positions.path("withOrderbook")) {
             JsonNode instrument = p.path("instrument");
             BigDecimal marketValue = decimal(p.path("value").path("value"));
             int shares = p.path("volume").path("value").asInt();
@@ -122,13 +128,9 @@ public class AvanzaProvider implements PortfolioDataProvider {
         return holdings;
     }
 
-    @Override
-    public BigDecimal fetchAccountValue() {
-        // Svaret är redan filtrerat till kontot i URL:en, så allt i det summeras:
-        // innehavens marknadsvärde plus likvida medel.
-        JsonNode positions = fetchPositions();
+    /** Holdings' market value plus cash - the response is already scoped to one account. */
+    private BigDecimal parseAccountValue(JsonNode positions) {
         BigDecimal total = BigDecimal.ZERO;
-
         for (JsonNode p : positions.path("withOrderbook")) {
             BigDecimal value = decimal(p.path("value").path("value"));
             if (value != null) {

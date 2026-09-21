@@ -1,6 +1,7 @@
 package com.qullamaggie.tradingsystem.pipeline;
 
 import com.qullamaggie.tradingsystem.portfolio.service.IntradayMonitoringService;
+import com.qullamaggie.tradingsystem.portfolio.service.OvernightExposureService;
 import com.qullamaggie.tradingsystem.scanner.*;
 import com.qullamaggie.tradingsystem.scanner.service.ParabolicIntradayService;
 import com.qullamaggie.tradingsystem.universe.service.MarketDiscoveryService;
@@ -16,13 +17,16 @@ public class PipelineScheduler {
     private final IntradayMonitoringService intradayMonitoringService;
     private final ParabolicIntradayService parabolicIntradayService;
     private final MarketDiscoveryService marketDiscoveryService;
+    private final OvernightExposureService overnightExposureService;
 
     public PipelineScheduler(PipelineService pipelineService, IntradayMonitoringService intradayMonitoringService,
-                             ParabolicIntradayService parabolicIntradayService, MarketDiscoveryService marketDiscoveryService) {
+                             ParabolicIntradayService parabolicIntradayService, MarketDiscoveryService marketDiscoveryService,
+                             OvernightExposureService overnightExposureService) {
         this.pipelineService = pipelineService;
         this.intradayMonitoringService = intradayMonitoringService;
         this.parabolicIntradayService = parabolicIntradayService;
         this.marketDiscoveryService = marketDiscoveryService;
+        this.overnightExposureService = overnightExposureService;
     }
 
     /**
@@ -67,6 +71,15 @@ public class PipelineScheduler {
     @Scheduled(cron = "0 0 18 * * SUN", zone = "America/New_York")
     public void runMarketDiscovery() {
         marketDiscoveryService.discoverAndSaveCandidates();
+    }
+
+    /**
+     * Overnight exposure check 30 minutes before the close, leaving time to trim
+     * before gap risk applies.
+     */
+    @Scheduled(cron = "0 30 15 * * MON-FRI", zone = "America/New_York")
+    public void runOvernightExposureCheck() {
+        overnightExposureService.checkOvernightExposure();
     }
 
     @Scheduled(cron = "0 */5 9-16 * * MON-FRI", zone = "America/New_York")

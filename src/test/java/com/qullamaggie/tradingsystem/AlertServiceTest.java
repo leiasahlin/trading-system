@@ -51,7 +51,10 @@ class AlertServiceTest {
                 new BigDecimal("100000"),   // size
                 new BigDecimal("0.20"),     // maxPositionPercent
                 new BigDecimal("0.005"),    // riskPercentDefensive
-                new BigDecimal("0.01"));    // riskPercentOffensive
+                new BigDecimal("0.01"),      // riskPercentOffensive
+                new BigDecimal("0.30"),      // maxOvernightPositionPercent
+                new BigDecimal("0.20"));     // overnightTrimTargetPercent
+
 
         alertService = new AlertService(
                 scanResultRepository, indicatorRepository, alertRepository,
