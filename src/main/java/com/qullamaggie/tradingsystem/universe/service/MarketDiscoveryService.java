@@ -50,13 +50,22 @@ public class MarketDiscoveryService {
     }
 
     public void discoverAndSaveCandidates() {
+        if (!config.enabled()) {
+            log.info("Marknadsgenomsökning avstängd (trading.discovery.enabled=false)");
+            return;
+        }
+
         int added = 0;
         for (String exchange : config.exchanges()) {
             for (SymbolInfo symbol : marketDataProvider.fetchSymbols(exchange)) {
-                if (shouldConsider(symbol) && passesCoarseScreen(symbol.symbol())
-                        && hasEnoughAdr(symbol.symbol())) {
-                    save(symbol);
-                    added++;
+                try {
+                    if (shouldConsider(symbol) && passesCoarseScreen(symbol.symbol())
+                            && hasEnoughAdr(symbol.symbol())) {
+                        save(symbol);
+                        added++;
+                    }
+                } catch (Exception e) {
+                    log.warn("Genomsökning misslyckades för {}: {}", symbol.symbol(), e.getMessage());
                 }
             }
         }

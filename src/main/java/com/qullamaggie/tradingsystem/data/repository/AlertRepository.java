@@ -13,4 +13,5 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     List<Alert> findBySeen(boolean seen);
     boolean existsByStockAndStatus(Stock stock, AlertStatus status);
     boolean existsByStockAndTypeAndCreatedAtAfter(Stock stock, String type, LocalDateTime since);
+    List<Alert> findByStatus(AlertStatus status);
 }

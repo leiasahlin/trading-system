@@ -6,6 +6,8 @@ import com.qullamaggie.tradingsystem.data.entity.Stock;
 import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -19,6 +21,7 @@ public class MarketDataService {
     private final MarketDataProvider marketDataProvider;
     private final StockRepository stockRepository;
     private final DailyPriceRepository dailyPriceRepository;
+    private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
 
     public MarketDataService(MarketDataProvider marketDataProvider,
                              StockRepository stockRepository,
@@ -37,9 +40,12 @@ public class MarketDataService {
         List<Stock> stocks = stockRepository.findAll();
 
         for (Stock stock : stocks) {
-            sum += refreshPrices(stock);
+            try {
+                sum += refreshPrices(stock);
+            } catch (Exception e) {
+                log.warn("Kunde inte uppdatera priser för {}: {}", stock.getSymbol(), e.getMessage());
+            }
         }
-
         return new RefreshSummary(stocks.size(), sum);
     }
 

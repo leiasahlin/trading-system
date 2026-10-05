@@ -5,6 +5,8 @@ import com.qullamaggie.tradingsystem.data.repository.*;
 import com.qullamaggie.tradingsystem.portfolio.PositionSummary;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleConfig;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleEvaluator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -22,6 +24,7 @@ public class PositionMonitoringService {
     private final SellRuleEvaluator sellRuleEvaluator;
     private final PositionSummaryProvider positionSummaryProvider;
     private final SellRuleConfig sellRuleConfig;
+    private static final Logger log = LoggerFactory.getLogger(PositionMonitoringService.class);
 
     public PositionMonitoringService(PositionRepository positionRepository, TransactionRepository transactionRepository,
                                      IndicatorRepository indicatorRepository, PositionAlertRepository positionAlertRepository,
@@ -36,9 +39,13 @@ public class PositionMonitoringService {
     }
 
     public void monitorAllOpenPositions() {
-        List<Position> openPositions = positionRepository.findByStatus(PositionStatus.OPEN);
-        for (Position position : openPositions) {
-            monitorPosition(position);
+        for (Position position : positionRepository.findByStatus(PositionStatus.OPEN)) {
+            try {
+                monitorPosition(position);
+            } catch (Exception e) {
+                log.warn("Positionsbevakning misslyckades för {}: {}",
+                        position.getStock().getSymbol(), e.getMessage());
+            }
         }
     }
 

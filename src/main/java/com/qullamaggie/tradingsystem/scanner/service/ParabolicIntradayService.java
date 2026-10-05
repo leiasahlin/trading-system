@@ -10,6 +10,8 @@ import com.qullamaggie.tradingsystem.data.repository.AlertRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.scanner.ParabolicIntradayEvaluator;
 import com.qullamaggie.tradingsystem.scanner.ParabolicTriggerType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -30,6 +32,8 @@ public class ParabolicIntradayService {
     private final MarketDataProvider marketDataProvider;
     private final ParabolicIntradayEvaluator evaluator;
     private final AlertService alertService;
+    private static final Logger log = LoggerFactory.getLogger(ParabolicIntradayService.class);
+
 
     public ParabolicIntradayService(ScanResultRepository scanResultRepository,
                                     AlertRepository alertRepository,
@@ -48,7 +52,12 @@ public class ParabolicIntradayService {
         LocalDateTime since = LocalDateTime.now().minusDays(3);
         for (ScanResult scan : scanResultRepository
                 .findBySetupTypeAndScannedAtAfter(SetupType.PARABOLIC_SHORT, since)) {
-            checkCandidate(scan.getStock());
+            try {
+                checkCandidate(scan.getStock());
+            } catch (Exception e) {
+                log.warn("Parabolic intradagskontroll misslyckades för {}: {}",
+                        scan.getStock().getSymbol(), e.getMessage());
+            }
         }
     }
 

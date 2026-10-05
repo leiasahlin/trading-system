@@ -11,5 +11,6 @@ public record DiscoveryConfig(
         List<String> instrumentTypes,
         BigDecimal minPrice,
         BigDecimal volumeToleranceFactor,
-        List<String> excludedSectors
+        List<String> excludedSectors,
+        boolean enabled
 ) {}

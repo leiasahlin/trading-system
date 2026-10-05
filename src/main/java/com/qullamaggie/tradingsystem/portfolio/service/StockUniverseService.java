@@ -8,6 +8,8 @@ import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
 import com.qullamaggie.tradingsystem.portfolio.StockAlreadyExistsException;
 import com.qullamaggie.tradingsystem.universe.UniverseFilterConfig;
 import com.qullamaggie.tradingsystem.universe.UniverseFilterEvaluator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -27,6 +29,7 @@ public class StockUniverseService {
     private final UniverseFilterEvaluator universeFilterEvaluator;
     private final MarketDataProvider marketDataProvider;
     private final UniverseFilterConfig config;
+    private static final Logger log = LoggerFactory.getLogger(StockUniverseService.class);
 
     public StockUniverseService(StockRepository stockRepository, DailyPriceRepository dailyPriceRepository, IndicatorRepository indicatorRepository, MarketDataService marketDataService, IndicatorService indicatorService, UniverseFilterEvaluator universeFilterEvaluator, MarketDataProvider marketDataProvider, UniverseFilterConfig config) {
         this.stockRepository = stockRepository;
@@ -75,12 +78,13 @@ public class StockUniverseService {
     }
 
     public void reEvaluateAllStocks() {
-        List<Stock> stock = stockRepository.findAll();
-
-        for (Stock s : stock) {
-            reEvaluateEligibility(s);
+        for (Stock stock : stockRepository.findAll()) {
+            try {
+                reEvaluateEligibility(stock);
+            } catch (Exception e) {
+                log.warn("Kunde inte omvärdera behörighet för {}: {}", stock.getSymbol(), e.getMessage());
+            }
         }
-
     }
 
     private void refreshMarketCapIfStale(Stock stock, LocalDate asOfDate) {

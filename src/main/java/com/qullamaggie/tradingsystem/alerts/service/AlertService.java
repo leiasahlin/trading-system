@@ -11,6 +11,8 @@ import com.qullamaggie.tradingsystem.scanner.ParabolicTriggerType;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +39,7 @@ public class AlertService {
     private final AccountConfig accountConfig;
     private final int parabolicLookbackDays;
     private final BigDecimal parabolicStopMarginPercent;
+    private static final Logger log = LoggerFactory.getLogger(AlertService.class);
 
     public AlertService(ScanResultRepository scanResultRepository,
                         IndicatorRepository indicatorRepository,
@@ -167,9 +170,13 @@ public class AlertService {
      * Creates alerts for all scan results that don't already have a pending alert.
      */
     public void createAlertsForAllScans() {
-        List<ScanResult> scans = scanResultRepository.findAll();
-        for (ScanResult scan : scans) {
-            createAlertFromScan(scan);
+        for (ScanResult scan : scanResultRepository.findAll()) {
+            try {
+                createAlertFromScan(scan);
+            } catch (Exception e) {
+                log.warn("Kunde inte skapa alert för {}: {}",
+                        scan.getStock().getSymbol(), e.getMessage());
+            }
         }
     }
 

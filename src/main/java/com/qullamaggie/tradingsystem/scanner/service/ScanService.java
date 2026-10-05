@@ -6,6 +6,8 @@ import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.*;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import com.qullamaggie.tradingsystem.scanner.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -28,6 +30,7 @@ public class ScanService {
     private final IndicatorCalculator calculator;
     private final ParabolicShortConfig parabolicConfig;
     private final ParabolicShortEvaluator parabolicShortEvaluator;
+    private static final Logger log = LoggerFactory.getLogger(ScanService.class);
 
     private final BreakoutScanConfig breakoutConfig;
     private final EpisodicPivotScanConfig episodicPivotConfig;
@@ -84,10 +87,12 @@ public class ScanService {
     }
 
     public void scanAllStocks() {
-        List<Stock> stocks = stockRepository.findByEligibleTrue();
-
-        for (Stock s : stocks) {
-            scanStock(s);
+        for (Stock s : stockRepository.findByEligibleTrue()) {
+            try {
+                scanStock(s);
+            } catch (Exception e) {
+                log.warn("Breakout-scan misslyckades för {}: {}", s.getSymbol(), e.getMessage());
+            }
         }
     }
 
@@ -132,10 +137,12 @@ public class ScanService {
     }
 
     public void scanAllStocksForEpisodicPivot() {
-        List<Stock> stocks = stockRepository.findByEligibleTrue();
-
-        for (Stock s : stocks) {
-            scanStockForEpisodicPivot(s);
+        for (Stock s : stockRepository.findByEligibleTrue()) {
+            try {
+                scanStockForEpisodicPivot(s);
+            } catch (Exception e) {
+                log.warn("EP-scan misslyckades för {}: {}", s.getSymbol(), e.getMessage());
+            }
         }
     }
 
@@ -170,9 +177,12 @@ public class ScanService {
     }
 
     public void scanAllStocksForParabolicShort() {
-        List<Stock> stocks = stockRepository.findByEligibleTrue();
-        for (Stock s : stocks) {
-            scanStockForParabolicShort(s);
+        for (Stock s : stockRepository.findByEligibleTrue()) {
+            try {
+                scanStockForParabolicShort(s);
+            } catch (Exception e) {
+                log.warn("Parabolic-scan misslyckades för {}: {}", s.getSymbol(), e.getMessage());
+            }
         }
     }
 }

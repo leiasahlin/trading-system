@@ -48,7 +48,11 @@ public class OvernightExposureService {
 
         LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
         for (PortfolioHolding holding : snapshot.holdings()) {
-            checkHolding(holding, accountValue, today);
+            try {
+                checkHolding(holding, accountValue, today);
+            } catch (Exception e) {
+                log.warn("Övernattskontroll misslyckades för {}: {}", holding.name(), e.getMessage());
+            }
         }
     }
 

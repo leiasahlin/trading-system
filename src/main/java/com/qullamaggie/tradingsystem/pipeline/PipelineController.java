@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.pipeline;
 
+import com.qullamaggie.tradingsystem.universe.service.MarketDiscoveryService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,9 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/pipeline")
 public class PipelineController {
     private final PipelineService pipelineService;
+    private final MarketDiscoveryService marketDiscoveryService;
 
-    public PipelineController(PipelineService pipelineService) {
+    public PipelineController(PipelineService pipelineService, MarketDiscoveryService marketDiscoveryService) {
         this.pipelineService = pipelineService;
+        this.marketDiscoveryService = marketDiscoveryService;
     }
 
     /**
@@ -28,5 +31,10 @@ public class PipelineController {
     @PostMapping("/episodic-pivot")
     public void runEP() {
         pipelineService.runEpisodicPivotScan();
+    }
+
+    @PostMapping("/discovery")
+    public void runDiscovery() {
+        marketDiscoveryService.discoverAndSaveCandidates();
     }
 }

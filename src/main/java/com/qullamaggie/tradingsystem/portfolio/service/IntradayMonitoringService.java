@@ -38,7 +38,12 @@ public class IntradayMonitoringService {
 
     public void checkAllOpenPositions() {
         for (Position position : positionRepository.findByStatus(PositionStatus.OPEN)) {
-            checkPosition(position);
+            try {
+                checkPosition(position);
+            } catch (Exception e) {
+                log.warn("Intradagsbevakning misslyckades för {}: {}",
+                        position.getStock().getSymbol(), e.getMessage());
+            }
         }
     }
 

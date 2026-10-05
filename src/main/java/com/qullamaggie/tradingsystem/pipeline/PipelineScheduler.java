@@ -48,19 +48,6 @@ public class PipelineScheduler {
         pipelineService.runEpisodicPivotScanOnly();
     }
 
-    /**
-     * Intraday stop watch: every 5 minutes during US market hours. The cron
-     * covers 09:00-16:59; the in-method guard trims it to the actual session,
-     * since cron can't express 09:35-16:00 directly.
-     */
-    @Scheduled(cron = "0 */5 9-16 * * MON-FRI", zone = "America/New_York")
-    public void runIntradayStopWatch() {
-        LocalTime now = LocalTime.now(ZoneId.of("America/New_York"));
-        if (now.isBefore(LocalTime.of(9, 35)) || now.isAfter(LocalTime.of(16, 0))) {
-            return;
-        }
-        intradayMonitoringService.checkAllOpenPositions();
-    }
 
     /**
      * Weekly market-wide discovery. The symbol universe changes slowly and a stock

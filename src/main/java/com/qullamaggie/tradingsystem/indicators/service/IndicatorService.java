@@ -8,6 +8,8 @@ import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +28,8 @@ public class IndicatorService {
     private final StockRepository stockRepository;
     private final int flagWindow;
     private final int flagpoleWindow;
+    private static final Logger log = LoggerFactory.getLogger(IndicatorService.class);
+
 
     public IndicatorService(DailyPriceRepository dailyPriceRepository,
                             IndicatorRepository indicatorRepository,
@@ -135,10 +139,12 @@ public class IndicatorService {
     }
 
     public void calculateForAllStocks() {
-        List<Stock> stocks = stockRepository.findAll();
-
-        for (Stock stock : stocks) {
-            calculateAndSaveIndicators(stock);
+        for (Stock stock : stockRepository.findAll()) {
+            try {
+                calculateAndSaveIndicators(stock);
+            } catch (Exception e) {
+                log.warn("Kunde inte beräkna indikatorer för {}: {}", stock.getSymbol(), e.getMessage());
+            }
         }
     }
 
