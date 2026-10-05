@@ -9,6 +9,8 @@ import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
 import com.qullamaggie.tradingsystem.portfolio.service.PositionMonitoringService;
 import com.qullamaggie.tradingsystem.portfolio.service.StockUniverseService;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -27,6 +29,7 @@ public class PipelineService {
     private final StockUniverseService stockUniverseService;
     private final PositionMonitoringService positionMonitoringService;
     private final MarketRegimeService marketRegimeService;
+    private static final Logger log = LoggerFactory.getLogger(PipelineService.class);
 
     public PipelineService(MarketDataService marketDataService,
                            IndicatorService indicatorService, ScanService scanService,
@@ -45,18 +48,32 @@ public class PipelineService {
      * refreshes price data, then recalculates indicators.
      */
     public void runForAllStocks() {
+        log.info("Kvällspipeline startar");
+
         marketDataService.refreshAllStocks();
+        log.info("Priser uppdaterade");
+
         indicatorService.calculateForAllStocks();
+        log.info("Indikatorer beräknade");
+
         MarketRegime regime = marketRegimeService.evaluateAndSave(LocalDate.now());
+        log.info("Marknadsregim: {}", regime.getStatus());
+
         stockUniverseService.reEvaluateAllStocks();
+        log.info("Universum omvärderat");
 
         if (regime.getStatus() == RegimeStatus.RISK_ON) {
             scanService.scanAllStocks();
+            log.info("Breakout-scan klar");
+        } else {
+            log.info("RISK_OFF - breakout-scan hoppas över");
         }
         scanService.scanAllStocksForParabolicShort();
+        log.info("Parabolic-scan klar");
 
         alertService.createAlertsForAllScans();
         positionMonitoringService.monitorAllOpenPositions();
+        log.info("Kvällspipeline klar");
     }
 
     /**

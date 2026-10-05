@@ -1,13 +1,11 @@
 package com.qullamaggie.tradingsystem.data.provider;
 
-import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
-import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
-import com.qullamaggie.tradingsystem.data.dto.Quote;
-import com.qullamaggie.tradingsystem.data.dto.SymbolInfo;
+import com.qullamaggie.tradingsystem.data.dto.*;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Contract for any market data source (e.g. Twelve Data, IBKR, Avanza).
@@ -54,4 +52,10 @@ public interface MarketDataProvider {
 
     /** Latest close and volume for one symbol, or null if unavailable. */
     Quote fetchQuote(String symbol);
+
+    /** Latest close and volume for several symbols in one call, keyed by symbol. */
+    Map<String, Quote> fetchQuotes(List<String> symbols);
+
+    /** Split events for the symbol, newest first. */
+    List<StockSplit> fetchSplits(String symbol);
 }

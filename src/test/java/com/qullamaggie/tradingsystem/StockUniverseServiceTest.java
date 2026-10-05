@@ -49,8 +49,8 @@ class StockUniverseServiceTest {
         UniverseFilterConfig config = new UniverseFilterConfig(
                 BigDecimal.valueOf(5),      // minPrice
                 1_000_000L,                 // minAvgVolume
-                BigDecimal.valueOf(4),      // minAdr
-                7);                         // marketCapMaxAgeDays
+                BigDecimal.valueOf(4));     // minAdr
+
 
         stockUniverseService = new StockUniverseService(
                 stockRepository, dailyPriceRepository, indicatorRepository,
@@ -176,25 +176,6 @@ class StockUniverseServiceTest {
         verify(stockRepository).save(stockB);
     }
 
-    // --- market cap refresh ---
-
-    @Test
-    void reEvaluateEligibility_fetchesMarketCap_whenNeverFetchedBefore() {
-        Stock stock = new Stock();
-        stock.setSymbol("AAPL");
-        // marketCapUpdatedAt är null som default
-
-        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(price));
-        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
-        when(universeFilterEvaluator.isEligible(price, indicator)).thenReturn(true);
-        when(marketDataProvider.fetchMarketCap("AAPL")).thenReturn(BigDecimal.valueOf(50_000_000_000L));
-
-        stockUniverseService.reEvaluateEligibility(stock);
-
-        assertEquals(0, BigDecimal.valueOf(50_000_000_000L).compareTo(stock.getMarketCapUsd()));
-        assertEquals(LocalDate.now(), stock.getMarketCapUpdatedAt());
-    }
-
     @Test
     void reEvaluateEligibility_skipsMarketCapFetch_whenValueIsFresh() {
         Stock stock = new Stock();
@@ -210,42 +191,5 @@ class StockUniverseServiceTest {
 
         verifyNoInteractions(marketDataProvider);
         assertEquals(LocalDate.now().minusDays(2), stock.getMarketCapUpdatedAt());
-    }
-
-    @Test
-    void reEvaluateEligibility_fetchesMarketCap_whenValueIsStale() {
-        Stock stock = new Stock();
-        stock.setSymbol("AAPL");
-        stock.setMarketCapUsd(BigDecimal.valueOf(40_000_000_000L));
-        stock.setMarketCapUpdatedAt(LocalDate.now().minusDays(10)); // över tröskeln
-
-        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(price));
-        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
-        when(universeFilterEvaluator.isEligible(price, indicator)).thenReturn(true);
-        when(marketDataProvider.fetchMarketCap("AAPL")).thenReturn(BigDecimal.valueOf(55_000_000_000L));
-
-        stockUniverseService.reEvaluateEligibility(stock);
-
-        assertEquals(0, BigDecimal.valueOf(55_000_000_000L).compareTo(stock.getMarketCapUsd()));
-        assertEquals(LocalDate.now(), stock.getMarketCapUpdatedAt());
-    }
-
-    @Test
-    void reEvaluateEligibility_leavesTimestampUnset_whenMarketCapFetchReturnsNull() {
-        // Gratisplanen ger ingen fundamentaldata - stämpeln ska INTE sättas,
-        // så att systemet försöker igen nästa körning i stället för att låsa
-        // ute aktien i en vecka.
-        Stock stock = new Stock();
-        stock.setSymbol("AAPL");
-
-        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(price));
-        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
-        when(universeFilterEvaluator.isEligible(price, indicator)).thenReturn(true);
-        when(marketDataProvider.fetchMarketCap("AAPL")).thenReturn(null);
-
-        stockUniverseService.reEvaluateEligibility(stock);
-
-        assertNull(stock.getMarketCapUsd());
-        assertNull(stock.getMarketCapUpdatedAt());
     }
 }

@@ -8,6 +8,5 @@ import java.math.BigDecimal;
 public record UniverseFilterConfig(
         BigDecimal minPrice,
         long minAvgVolume,
-        BigDecimal minAdr,
-        int marketCapMaxAgeDays
+        BigDecimal minAdr
 ) {}

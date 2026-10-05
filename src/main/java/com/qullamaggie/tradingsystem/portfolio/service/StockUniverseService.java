@@ -12,9 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,8 +24,6 @@ public class StockUniverseService {
     private final MarketDataService marketDataService;
     private final IndicatorService indicatorService;
     private final UniverseFilterEvaluator universeFilterEvaluator;
-    private final MarketDataProvider marketDataProvider;
-    private final UniverseFilterConfig config;
     private static final Logger log = LoggerFactory.getLogger(StockUniverseService.class);
 
     public StockUniverseService(StockRepository stockRepository, DailyPriceRepository dailyPriceRepository, IndicatorRepository indicatorRepository, MarketDataService marketDataService, IndicatorService indicatorService, UniverseFilterEvaluator universeFilterEvaluator, MarketDataProvider marketDataProvider, UniverseFilterConfig config) {
@@ -38,8 +33,6 @@ public class StockUniverseService {
         this.marketDataService = marketDataService;
         this.indicatorService = indicatorService;
         this.universeFilterEvaluator = universeFilterEvaluator;
-        this.marketDataProvider = marketDataProvider;
-        this.config = config;
     }
 
     public Stock addStock(String symbol) {
@@ -63,8 +56,6 @@ public class StockUniverseService {
             return;
         }
 
-        refreshMarketCapIfStale(stock, LocalDate.now());
-
         Optional<DailyPrice> price = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
         Optional<Indicator> indicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
 
@@ -78,34 +69,15 @@ public class StockUniverseService {
     }
 
     public void reEvaluateAllStocks() {
-        for (Stock stock : stockRepository.findAll()) {
+        List<Stock> stocks = stockRepository.findAll();
+        for (Stock stock : stocks) {
             try {
                 reEvaluateEligibility(stock);
             } catch (Exception e) {
                 log.warn("Kunde inte omvärdera behörighet för {}: {}", stock.getSymbol(), e.getMessage());
             }
         }
-    }
-
-    private void refreshMarketCapIfStale(Stock stock, LocalDate asOfDate) {
-        LocalDate lastUpdated = stock.getMarketCapUpdatedAt();
-
-        boolean neverFetched = lastUpdated == null;
-        boolean isStale = !neverFetched
-                && ChronoUnit.DAYS.between(lastUpdated, asOfDate) >= config.marketCapMaxAgeDays();
-
-        if (!neverFetched && !isStale) {
-            return;
-        }
-
-        // TODO 2: marketDataProvider.fetchMarketCap(stock.getSymbol())
-        BigDecimal marketCap = marketDataProvider.fetchMarketCap(stock.getSymbol());
-
-        if (marketCap == null) {
-            return;
-        }
-
-        stock.setMarketCapUsd(marketCap);
-        stock.setMarketCapUpdatedAt(asOfDate);
+        log.info("Universum: {} av {} aktier behöriga",
+                stockRepository.findByEligibleTrue().size(), stocks.size());
     }
 }

@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -64,6 +66,11 @@ public class ScanService {
         Indicator indicator = latestIndicator.get();
         DailyPrice price = latestPrice.get();
 
+        if (indicator.getConsolidationRange() == null || indicator.getPullback() == null
+                || indicator.getVolumeContraction() == null) {
+            return;   // ingen giltig flagga identifierad
+        }
+
         boolean hasPriorMove = indicator.getPriorMove().compareTo(breakoutConfig.minPriorMove()) >= 0 &&
                 indicator.getPriorMove().compareTo(breakoutConfig.maxPriorMove()) <= 0;
         boolean hasEnoughVolume = indicator.getVolumeAvg20() >= breakoutConfig.minAvgVolume();
@@ -108,6 +115,11 @@ public class ScanService {
         }
 
         Indicator indicator = latestIndicator.get();
+        // Har aktien redan gjort en stor flermånadersrörelse är gapet ingen överraskning
+        if (indicator.getPriorMove() != null
+                && indicator.getPriorMove().compareTo(episodicPivotConfig.maxPriorMovePercent()) > 0) {
+            return;
+        }
         DailyPrice yesterday = latestPrice.get();
 
         BigDecimal gapPercent = calculator.calculateGap(yesterday.getClose(), snapshot.open());
@@ -148,7 +160,7 @@ public class ScanService {
 
     public void scanStockForParabolicShort(Stock stock) {
         Optional<Indicator> latestIndicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);
-        if (latestIndicator.isEmpty() || stock.getMarketCapUsd() == null) {
+        if (latestIndicator.isEmpty()) {
             return;
         }
         Indicator indicator = latestIndicator.get();
@@ -158,11 +170,18 @@ public class ScanService {
             return;
         }
 
-        // Vänd till äldst-först och begränsa till lookback-fönstret,
-        // eftersom evaluatorn förväntar sig kronologisk ordning
-        List<DailyPrice> window = new ArrayList<>(
-                prices.subList(0, parabolicConfig.lookbackDays()));
+        List<DailyPrice> window = new ArrayList<>(prices.subList(0, parabolicConfig.lookbackDays()));
         Collections.reverse(window);
+
+        // Marknadsvärde kostar 50 krediter per anrop och används bara här, så det
+        // hämtas först när aktiens struktur faktiskt ser parabolisk ut
+        if (!parabolicShortEvaluator.hasParabolicStructure(window)) {
+            return;
+        }
+        refreshMarketCapIfStale(stock, LocalDate.now());
+        if (stock.getMarketCapUsd() == null) {
+            return;
+        }
 
         boolean isParabolic = parabolicShortEvaluator.isParabolicShort(
                 window, stock.getMarketCapUsd(), indicator.getEma10(), indicator.getVolumeAvg20());
@@ -184,5 +203,29 @@ public class ScanService {
                 log.warn("Parabolic-scan misslyckades för {}: {}", s.getSymbol(), e.getMessage());
             }
         }
+    }
+
+    /**
+     * Fetches market cap when it's missing or stale. It only matters for the
+     * parabolic setup's extension threshold, and each call is expensive, so it
+     * happens here rather than for every stock in the universe filter.
+     */
+    private void refreshMarketCapIfStale(Stock stock, LocalDate asOfDate) {
+        LocalDate lastUpdated = stock.getMarketCapUpdatedAt();
+        boolean needsRefresh = lastUpdated == null
+                || ChronoUnit.DAYS.between(lastUpdated, asOfDate) >= parabolicConfig.marketCapMaxAgeDays();
+
+        if (!needsRefresh) {
+            return;
+        }
+
+        BigDecimal marketCap = marketDataProvider.fetchMarketCap(stock.getSymbol());
+        if (marketCap == null) {
+            return;   // stämpeln sätts inte, så nästa körning försöker igen
+        }
+
+        stock.setMarketCapUsd(marketCap);
+        stock.setMarketCapUpdatedAt(asOfDate);
+        stockRepository.save(stock);
     }
 }

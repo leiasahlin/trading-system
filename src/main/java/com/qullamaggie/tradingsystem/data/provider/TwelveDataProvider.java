@@ -1,10 +1,9 @@
 package com.qullamaggie.tradingsystem.data.provider;
 
-import com.qullamaggie.tradingsystem.data.dto.IntradayBar;
-import com.qullamaggie.tradingsystem.data.dto.IntradaySnapshot;
-import com.qullamaggie.tradingsystem.data.dto.Quote;
-import com.qullamaggie.tradingsystem.data.dto.SymbolInfo;
+import com.qullamaggie.tradingsystem.data.dto.*;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -12,14 +11,13 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 /**
  * Fetches daily OHLCV data from the Twelve Data API.
@@ -61,6 +59,11 @@ public class TwelveDataProvider implements MarketDataProvider {
             JsonNode values = root.get("values");
 
             for (JsonNode dayNode : values) {
+                long volume = Long.parseLong(dayNode.get("volume").asText());
+                if (volume == 0) {
+                    continue;   // ingen handel - ofta en split- eller helgdagsmarkering
+                }
+
                 DailyPrice price = new DailyPrice();
                 price.setDate(LocalDate.parse(dayNode.get("datetime").asText()));
                 price.setOpen(new BigDecimal(dayNode.get("open").asText()));
@@ -223,10 +226,15 @@ public class TwelveDataProvider implements MarketDataProvider {
         List<SymbolInfo> symbols = new ArrayList<>();
         try {
             for (JsonNode node : new ObjectMapper().readTree(json).path("data")) {
+                String isin = node.path("isin").asText(null);
+                // Twelve Data returnerar en platshållartext när ISIN inte ingår i planen
+                if (isin != null && isin.length() != 12) {
+                    isin = null;
+                }
                 symbols.add(new SymbolInfo(
                         node.path("symbol").asText(),
                         node.path("name").asText(),
-                        node.path("isin").asText(null),
+                        isin,
                         node.path("type").asText(),
                         node.path("exchange").asText()));
             }
@@ -258,5 +266,79 @@ public class TwelveDataProvider implements MarketDataProvider {
         } catch (Exception e) {
             return null;   // en trasig symbol ska inte stoppa hela genomsökningen
         }
+    }
+
+    @Override
+    public Map<String, Quote> fetchQuotes(List<String> symbols) {
+        String joined = String.join(",", symbols);
+        String json = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/quote")
+                        .queryParam("symbol", joined)
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .body(String.class);
+
+        Map<String, Quote> quotes = new HashMap<>();
+        try {
+            JsonNode root = new ObjectMapper().readTree(json);
+            // Ett enda symbol ger ett platt svar, flera ger ett objekt med symbolen som nyckel
+            if (root.has("close")) {
+                addQuote(quotes, symbols.getFirst(), root);
+            } else {
+                for (String symbol : symbols) {
+                    addQuote(quotes, symbol, root.path(symbol));
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Twelve Data batch quote response", e);
+        }
+        return quotes;
+    }
+
+    /** Skips symbols the provider couldn't deliver - they appear as error objects. */
+    private void addQuote(Map<String, Quote> quotes, String symbol, JsonNode node) {
+        JsonNode close = node.path("close");
+        JsonNode volume = node.path("volume");
+        if (close.isMissingNode() || volume.isMissingNode()) {
+            return;
+        }
+        try {
+            quotes.put(symbol, new Quote(symbol,
+                    new BigDecimal(close.asText()), Long.parseLong(volume.asText())));
+        } catch (NumberFormatException e) {
+            // tom eller ogiltig siffra - hoppa över symbolen
+        }
+    }
+
+    @Override
+    public List<StockSplit> fetchSplits(String symbol) {
+        String json = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/splits")
+                        .queryParam("symbol", symbol)
+                        .queryParam("range", "full")
+                        .queryParam("apikey", apiKey)
+                        .build())
+                .retrieve()
+                .body(String.class);
+
+        List<StockSplit> splits = new ArrayList<>();
+        try {
+            for (JsonNode node : new ObjectMapper().readTree(json).path("splits")) {
+                BigDecimal from = new BigDecimal(node.path("from_factor").asText());
+                BigDecimal to = new BigDecimal(node.path("to_factor").asText());
+                if (from.signum() == 0) {
+                    continue;
+                }
+                splits.add(new StockSplit(
+                        LocalDate.parse(node.path("date").asText()),
+                        to.divide(from, 10, RoundingMode.HALF_UP)));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Twelve Data splits for " + symbol, e);
+        }
+        return splits;
     }
 }

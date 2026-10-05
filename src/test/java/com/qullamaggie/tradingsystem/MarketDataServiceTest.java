@@ -6,6 +6,7 @@ import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.data.service.MarketDataService;
+import com.qullamaggie.tradingsystem.data.service.SplitAdjuster;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -23,20 +25,18 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 public class MarketDataServiceTest {
 
-    @Mock
-    private MarketDataProvider marketDataProvider;
-    @Mock
-    private StockRepository stockRepository;
-    @Mock
-    private DailyPriceRepository dailyPriceRepository;
+    @Mock private MarketDataProvider marketDataProvider;
+    @Mock private StockRepository stockRepository;
+    @Mock private DailyPriceRepository dailyPriceRepository;
 
-    @InjectMocks
     private MarketDataService marketDataService;
-
     private Stock stock;
 
     @BeforeEach
     void setUp() {
+        marketDataService = new MarketDataService(
+                marketDataProvider, stockRepository, dailyPriceRepository, new SplitAdjuster());
+
         stock = new Stock();
         stock.setSymbol("AAPL");
     }
@@ -61,12 +61,14 @@ public class MarketDataServiceTest {
         // Pretend the latest date in database is 3 days ago
         DailyPrice existingPrice = new DailyPrice();
         existingPrice.setDate(LocalDate.now().minusDays(3));
+        existingPrice.setClose(new BigDecimal("100"));
         when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
                 .thenReturn(Optional.of(existingPrice));
 
         //Pretend the provider returns data
         DailyPrice fakePrice = new DailyPrice();
         fakePrice.setDate(LocalDate.now().minusDays(2));
+        fakePrice.setClose(new BigDecimal("101"));
         when(marketDataProvider.fetchDailyPrices(eq("AAPL"), anyInt()))
                 .thenReturn(List.of(fakePrice));
 

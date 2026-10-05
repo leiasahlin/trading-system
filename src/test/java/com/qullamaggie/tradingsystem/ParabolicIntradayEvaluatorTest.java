@@ -23,7 +23,7 @@ class ParabolicIntradayEvaluatorTest {
                 BigDecimal.valueOf(5), BigDecimal.valueOf(50), BigDecimal.valueOf(120),
                 BigDecimal.valueOf(300), BigDecimal.valueOf(2_000_000_000L),
                 BigDecimal.valueOf(10_000_000_000L), 15, 3, BigDecimal.valueOf(1.5),
-                BigDecimal.valueOf(2.0), BigDecimal.valueOf(2), BigDecimal.valueOf(0.5), 15);
+                BigDecimal.valueOf(2.0), BigDecimal.valueOf(2), BigDecimal.valueOf(0.5), 15, 7);
         evaluator = new ParabolicIntradayEvaluator(new IndicatorCalculator(), config);
     }
 

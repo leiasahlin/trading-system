@@ -8,6 +8,8 @@ import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
+import com.qullamaggie.tradingsystem.indicators.PhaseDetectionConfig;
+import com.qullamaggie.tradingsystem.indicators.PhaseDetector;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,8 +51,7 @@ public class IndicatorServiceTest {
                 indicatorRepository,
                 calculator,
                 stockRepository,
-                10,   // flagWindow
-                60); // flagpoleWindow
+                new PhaseDetector(new PhaseDetectionConfig(10, 40, 60)));
 
         stock = new Stock();
         stock.setSymbol("AAPL");

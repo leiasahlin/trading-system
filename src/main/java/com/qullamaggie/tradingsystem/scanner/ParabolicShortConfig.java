@@ -18,5 +18,6 @@ public record ParabolicShortConfig(
         BigDecimal minChurnVolumeRatio,
         BigDecimal maxChurnPricePercent,
         BigDecimal stopMarginPercent,
-        int openingRangeMinutes
+        int openingRangeMinutes,
+        int marketCapMaxAgeDays
 ) {}

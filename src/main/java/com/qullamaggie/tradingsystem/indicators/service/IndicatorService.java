@@ -7,7 +7,9 @@ import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
+import com.qullamaggie.tradingsystem.indicators.FlagPhases;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
+import com.qullamaggie.tradingsystem.indicators.PhaseDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,23 +28,19 @@ public class IndicatorService {
     private final IndicatorRepository indicatorRepository;
     private final IndicatorCalculator calculator;
     private final StockRepository stockRepository;
-    private final int flagWindow;
-    private final int flagpoleWindow;
+    private final PhaseDetector phaseDetector;
     private static final Logger log = LoggerFactory.getLogger(IndicatorService.class);
 
 
     public IndicatorService(DailyPriceRepository dailyPriceRepository,
                             IndicatorRepository indicatorRepository,
                             IndicatorCalculator indicatorCalculator,
-                            StockRepository stockRepository,
-                            @Value("${trading.scanner.breakout.flag-window}") int flagWindow,
-                            @Value("${trading.scanner.breakout.flagpole-window}") int flagpoleWindow) {
+                            StockRepository stockRepository, PhaseDetector phaseDetector) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.calculator = indicatorCalculator;
         this.stockRepository = stockRepository;
-        this.flagWindow = flagWindow;
-        this.flagpoleWindow = flagpoleWindow;
+        this.phaseDetector = phaseDetector;
     }
 
     public void calculateAndSaveIndicators(Stock stock) {
@@ -86,9 +84,6 @@ public class IndicatorService {
         // Prior move over 60 trading days (3 months)
         BigDecimal priorMove = calculator.findPriorMove(lastN(prices, 60));
 
-        // Consolidation range over the most recent 10 trading days
-        ConsolidationResult consolidation = calculator.calculateConsolidation(lastN(prices, 10));
-
         // Gap and relative volume (EP indicators) — based on the most recent day
         DailyPrice today = prices.getLast();
         DailyPrice yesterday = prices.get(prices.size() - 2);
@@ -96,15 +91,18 @@ public class IndicatorService {
         BigDecimal gapPercent = calculator.calculateGap(yesterday.getClose(), today.getOpen());
         BigDecimal relativeVolume = calculator.calculateRelativeVolume(today.getVolume(), volumeAvg20);
 
-        // Pullback from the flag high — flag phase approximated by a fixed window
-        // (to be replaced by dynamic phase detection later)
-        BigDecimal pullback = calculator.calculatePullback(lastN(prices, flagWindow));
+        // Flaggans längd upptäcks per aktie i stället för att antas
+        FlagPhases phases = phaseDetector.detect(prices);
 
-        // Volume contraction: flag volume vs flagpole volume
-        // Flag = last N days, flagpole = the N days before that (windows approximate the phases)
-        List<DailyPrice> flagPrices = lastN(prices, flagWindow);
-        List<DailyPrice> flagpolePrices = lastN(allExceptLastN(prices, flagWindow), flagpoleWindow);
-        BigDecimal volumeContraction = calculator.calculateVolumeContraction(flagPrices, flagpolePrices);
+        ConsolidationResult consolidation = null;
+        BigDecimal pullback = null;
+        BigDecimal volumeContraction = null;
+
+        if (phases != null) {
+            consolidation = calculator.calculateConsolidation(phases.flag());
+            pullback = calculator.calculatePullback(phases.flag());
+            volumeContraction = calculator.calculateVolumeContraction(phases.flag(), phases.flagpole());
+        }
 
         LocalDate date = prices.getLast().getDate();
 
@@ -128,9 +126,9 @@ public class IndicatorService {
         indicator.setVolumeAvg20(volumeAvg20);
         indicator.setVolumeAvg50(volumeAvg50);
         indicator.setPriorMove(priorMove);
-        indicator.setConsolidationRange(consolidation.range());
-        indicator.setConsolidationHigh(consolidation.high());
-        indicator.setConsolidationLow(consolidation.low());
+        indicator.setConsolidationRange(consolidation == null ? null : consolidation.range());
+        indicator.setConsolidationHigh(consolidation == null ? null : consolidation.high());
+        indicator.setConsolidationLow(consolidation == null ? null : consolidation.low());
         indicator.setGapPercent(gapPercent);
         indicator.setRelativeVolume(relativeVolume);
         indicator.setPullback(pullback);

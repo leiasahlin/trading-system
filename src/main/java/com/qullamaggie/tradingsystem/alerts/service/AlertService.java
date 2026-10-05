@@ -144,7 +144,12 @@ public class AlertService {
         Indicator indicator = latestIndicator.get();
 
         BigDecimal entry = indicator.getConsolidationHigh();
-        BigDecimal stop = indicator.getConsolidationLow();
+        Optional<DailyPrice> latestPrice = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
+        if (latestPrice.isEmpty()) {
+            return;
+        }
+
+        BigDecimal stop = latestPrice.get().getLow();
 
         BigDecimal riskDistancePercent = entry.subtract(stop).abs().divide(entry, 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
@@ -170,14 +175,15 @@ public class AlertService {
      * Creates alerts for all scan results that don't already have a pending alert.
      */
     public void createAlertsForAllScans() {
-        for (ScanResult scan : scanResultRepository.findAll()) {
+        List<ScanResult> scans = scanResultRepository.findAll();
+        for (ScanResult scan : scans) {
             try {
                 createAlertFromScan(scan);
             } catch (Exception e) {
-                log.warn("Kunde inte skapa alert för {}: {}",
-                        scan.getStock().getSymbol(), e.getMessage());
+                log.warn("Kunde inte skapa alert för {}: {}", scan.getStock().getSymbol(), e.getMessage());
             }
         }
+        log.info("Alerts: {} scanresultat behandlade", scans.size());
     }
 
     /**
@@ -205,7 +211,7 @@ public class AlertService {
             return;
         }
 
-        BigDecimal stop = determineStopPrice(prices.subList(0, parabolicLookbackDays));
+        BigDecimal stop = stopAboveDayHigh(prices.getFirst().getHigh());
         BigDecimal riskDistancePercent = entry.subtract(stop).abs()
                 .divide(entry, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
         if (riskDistancePercent.compareTo(latestIndicator.get().getAdr20()) > 0) {
@@ -228,19 +234,17 @@ public class AlertService {
 
 
     /**
-     * Stop sits just above the highest high of the run-up, per the source.
+     * Stop sits just above the day's high. The source document places it above the
+     * entire run-up's peak, but Kullamägi himself uses the high of the day (or a
+     * VWAP reclaim on that trigger) - the run-up's peak would put the stop far
+     * beyond 1 x ADR and make every signal invalid.
      *
-     * @param window lookback window, newest first
+     * @param latestHigh the most recent day's high
      */
-    private BigDecimal determineStopPrice(List<DailyPrice> window) {
-        BigDecimal highest = window.getFirst().getHigh();
-        for (DailyPrice price : window) {
-            highest = highest.max(price.getHigh());
-        }
-        BigDecimal margin = highest
+    private BigDecimal stopAboveDayHigh(BigDecimal latestHigh) {
+        BigDecimal margin = latestHigh
                 .multiply(parabolicStopMarginPercent)
                 .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
-
-        return highest.add(margin);
+        return latestHigh.add(margin);
     }
 }

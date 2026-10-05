@@ -8,5 +8,6 @@ import java.math.BigDecimal;
 public record EpisodicPivotScanConfig(
         BigDecimal minGap,
         BigDecimal minRelativeVolume,
-        BigDecimal minVolumeVsYesterday
+        BigDecimal minVolumeVsYesterday,
+        BigDecimal maxPriorMovePercent
 ) {}

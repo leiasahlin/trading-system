@@ -12,5 +12,7 @@ public record DiscoveryConfig(
         BigDecimal minPrice,
         BigDecimal volumeToleranceFactor,
         List<String> excludedSectors,
-        boolean enabled
+        boolean enabled,
+        int quoteBatchSize,
+        int creditsPerMinute
 ) {}

@@ -75,7 +75,8 @@ class ScanServiceTest {
                 BigDecimal.valueOf(2.0),                // minChurnVolumeRatio
                 BigDecimal.valueOf(2),                  // maxChurnPricePercent
                 BigDecimal.valueOf(0.5),               // stopMarginPercent
-                15);                                    // openingRangeMinutes
+                5,                                     // openingRangeMinutes
+                7);                                    // marketCapMaxAgeDays
 
         scanService = new ScanService(
                 dailyPriceRepository, indicatorRepository, scanResultRepository,
@@ -184,11 +185,13 @@ class ScanServiceTest {
     @Test
     void shouldSaveScanResult_whenEvaluatorFindsParabolicShort() {
         stock.setMarketCapUsd(new BigDecimal("50000000000"));
+        stock.setMarketCapUpdatedAt(LocalDate.now());   // färskt, så inget API-anrop sker
 
         when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
                 .thenReturn(Optional.of(indicatorForParabolic()));
         when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
                 .thenReturn(pricesNewestFirst(20));
+        when(parabolicShortEvaluator.hasParabolicStructure(any())).thenReturn(true);
         when(parabolicShortEvaluator.isParabolicShort(any(), any(), any(), any()))
                 .thenReturn(true);
 

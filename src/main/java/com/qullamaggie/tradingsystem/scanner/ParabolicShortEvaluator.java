@@ -227,4 +227,17 @@ public class ParabolicShortEvaluator {
         int fromIndex = prices.size() - upDays - 1;
         return prices.subList(fromIndex, prices.size());
     }
+
+    /**
+     * True if the price structure alone looks parabolic: enough consecutive up days
+     * with accelerating gains. Extension depends on market cap, which costs an API
+     * call, so this is checked first to avoid fetching it for every stock.
+     */
+    public boolean hasParabolicStructure(List<DailyPrice> prices) {
+        int upDays = countConsecutiveUpDays(prices);
+        if (upDays < config.minConsecutiveUpDays()) {
+            return false;
+        }
+        return isAccelerating(consecutiveUpDayRun(prices));
+    }
 }
