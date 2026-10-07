@@ -8,12 +8,14 @@ import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
 import com.qullamaggie.tradingsystem.portfolio.StockAlreadyExistsException;
 import com.qullamaggie.tradingsystem.universe.UniverseFilterConfig;
 import com.qullamaggie.tradingsystem.universe.UniverseFilterEvaluator;
+import com.qullamaggie.tradingsystem.universe.service.RelativeStrengthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class StockUniverseService {
@@ -24,15 +26,17 @@ public class StockUniverseService {
     private final MarketDataService marketDataService;
     private final IndicatorService indicatorService;
     private final UniverseFilterEvaluator universeFilterEvaluator;
+    private final RelativeStrengthService relativeStrengthService;
     private static final Logger log = LoggerFactory.getLogger(StockUniverseService.class);
 
-    public StockUniverseService(StockRepository stockRepository, DailyPriceRepository dailyPriceRepository, IndicatorRepository indicatorRepository, MarketDataService marketDataService, IndicatorService indicatorService, UniverseFilterEvaluator universeFilterEvaluator, MarketDataProvider marketDataProvider, UniverseFilterConfig config) {
+    public StockUniverseService(StockRepository stockRepository, DailyPriceRepository dailyPriceRepository, IndicatorRepository indicatorRepository, MarketDataService marketDataService, IndicatorService indicatorService, UniverseFilterEvaluator universeFilterEvaluator, MarketDataProvider marketDataProvider, UniverseFilterConfig config, RelativeStrengthService relativeStrengthService) {
         this.stockRepository = stockRepository;
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.marketDataService = marketDataService;
         this.indicatorService = indicatorService;
         this.universeFilterEvaluator = universeFilterEvaluator;
+        this.relativeStrengthService = relativeStrengthService;
     }
 
     public Stock addStock(String symbol) {
@@ -46,12 +50,12 @@ public class StockUniverseService {
 
         marketDataService.refreshPrices(stock);
         indicatorService.calculateAndSaveIndicators(stock);
-        reEvaluateEligibility(stock);
+        reEvaluateEligibility(stock, relativeStrengthService.findLeaders());
 
         return stock;
     }
 
-    public void reEvaluateEligibility(Stock stock) {
+    public void reEvaluateEligibility(Stock stock, Set<String> leaders) {
         if (stock.getType() == StockType.INDEX) {
             return;
         }
@@ -63,16 +67,19 @@ public class StockUniverseService {
             return;
         }
 
-        boolean isEligible = universeFilterEvaluator.isEligible(price.get(), indicator.get());
+        boolean isEligible = universeFilterEvaluator.isEligible(price.get(), indicator.get())
+                && leaders.contains(stock.getSymbol());
         stock.setEligible(isEligible);
         stockRepository.save(stock);
     }
 
     public void reEvaluateAllStocks() {
+        Set<String> leaders = relativeStrengthService.findLeaders();
         List<Stock> stocks = stockRepository.findAll();
+
         for (Stock stock : stocks) {
             try {
-                reEvaluateEligibility(stock);
+                reEvaluateEligibility(stock, leaders);
             } catch (Exception e) {
                 log.warn("Kunde inte omvärdera behörighet för {}: {}", stock.getSymbol(), e.getMessage());
             }

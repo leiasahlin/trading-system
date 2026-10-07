@@ -52,4 +52,7 @@ public class Alert {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AlertStatus status = AlertStatus.NEW;
+
+    @Column(name = "risk_percent", precision = 5, scale = 4)
+    private BigDecimal riskPercent;
 }

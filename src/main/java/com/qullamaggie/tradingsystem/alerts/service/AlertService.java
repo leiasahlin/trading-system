@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -114,7 +115,8 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountConfig.size(), currentRiskPercent(), entry,
+        BigDecimal riskPercent = currentRiskPercent();
+        int shares = positionSizeCalculator.calculateShares(accountConfig.size(), riskPercent, entry,
                 stop, accountConfig.maxPositionPercent());
 
         Alert alert = new Alert();
@@ -123,6 +125,7 @@ public class AlertService {
         alert.setEntryPrice(entry);
         alert.setStopPrice(stop);
         alert.setShares(shares);
+        alert.setRiskPercent(riskPercent);
         alert.setPrice(entry);
         alert.setMessage("Episodic pivot buy: " + shares + " shares, entry " + entry + ", stop " + stop);
         alertRepository.save(alert);
@@ -144,6 +147,9 @@ public class AlertService {
         Indicator indicator = latestIndicator.get();
 
         BigDecimal entry = indicator.getConsolidationHigh();
+        if (entry == null) {
+            return;   // ingen giltig flagga identifierad
+        }
         Optional<DailyPrice> latestPrice = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
         if (latestPrice.isEmpty()) {
             return;
@@ -157,7 +163,8 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(accountConfig.size(), currentRiskPercent(), entry,
+        BigDecimal riskPercent = currentRiskPercent();
+        int shares = positionSizeCalculator.calculateShares(accountConfig.size(), riskPercent, entry,
                 stop, accountConfig.maxPositionPercent());
 
         Alert alert = new Alert();
@@ -166,6 +173,7 @@ public class AlertService {
         alert.setEntryPrice(entry);
         alert.setStopPrice(stop);
         alert.setShares(shares);
+        alert.setRiskPercent(riskPercent);
         alert.setPrice(entry);
         alert.setMessage("Breakout buy: " + shares + " shares, entry " + entry + ", stop " + stop);
         alertRepository.save(alert);
@@ -175,7 +183,9 @@ public class AlertService {
      * Creates alerts for all scan results that don't already have a pending alert.
      */
     public void createAlertsForAllScans() {
-        List<ScanResult> scans = scanResultRepository.findAll();
+        // Bara dagens scanresultat - äldre signaler är inte längre aktuella,
+        // och deras indikatorer kan ha ändrats sedan dess
+        List<ScanResult> scans = scanResultRepository.findByScannedAtAfter(LocalDate.now().atStartOfDay());
         for (ScanResult scan : scans) {
             try {
                 createAlertFromScan(scan);
@@ -218,8 +228,9 @@ public class AlertService {
             return;
         }
 
-        int shares = positionSizeCalculator.calculateShares(
-                accountConfig.size(), currentRiskPercent(), entry, stop, accountConfig.maxPositionPercent());
+        BigDecimal riskPercent = currentRiskPercent();
+        int shares = positionSizeCalculator.calculateShares(accountConfig.size(), riskPercent, entry,
+                stop, accountConfig.maxPositionPercent());
 
         Alert alert = new Alert();
         alert.setStock(stock);
@@ -228,6 +239,7 @@ public class AlertService {
         alert.setStopPrice(stop);
         alert.setShares(shares);
         alert.setPrice(entry);
+        alert.setRiskPercent(riskPercent);
         alert.setMessage("Parabolic short (" + trigger + "): " + shares + " shares, entry " + entry + ", stop " + stop);
         alertRepository.save(alert);
     }

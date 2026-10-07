@@ -60,7 +60,8 @@ class ScanServiceTest {
         EpisodicPivotScanConfig episodicPivotConfig = new EpisodicPivotScanConfig(
                 new BigDecimal("10"),   // minGap
                 new BigDecimal("1"),    // minRelativeVolume
-                new BigDecimal("2"));   // minVolumeVsYesterday
+                new BigDecimal("2"),    // minVolumeVsYesterday
+                new BigDecimal("50"));  // maxPriorMovePercent
 
         ParabolicShortConfig parabolicConfig = new ParabolicShortConfig(
                 BigDecimal.valueOf(5),                  // minDailyGainPercent

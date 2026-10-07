@@ -223,4 +223,24 @@ public class IndicatorCalculator {
         }
         return weightedSum.divide(totalVolume, 4, RoundingMode.HALF_UP);
     }
+
+    /**
+     * Price change over the whole list, as a percentage from first close to last.
+     * Used for relative strength ranking, where what matters is the net move over
+     * the window rather than the largest swing within it.
+     *
+     * @param prices oldest first
+     */
+    public BigDecimal calculatePriceChange(List<DailyPrice> prices) {
+        if (prices.size() < 2) {
+            return null;
+        }
+        BigDecimal first = prices.getFirst().getClose();
+        if (first.signum() == 0) {
+            return null;
+        }
+        return prices.getLast().getClose().subtract(first)
+                .divide(first, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+    }
 }

@@ -8,5 +8,6 @@ package com.qullamaggie.tradingsystem.data.entity;
 
 public enum AlertStatus {
     NEW,
+    EXECUTED,
     DISMISSED
 }
