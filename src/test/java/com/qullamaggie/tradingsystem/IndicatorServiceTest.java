@@ -6,7 +6,6 @@ import com.qullamaggie.tradingsystem.data.entity.Stock;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
-import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import com.qullamaggie.tradingsystem.indicators.PhaseDetectionConfig;
 import com.qullamaggie.tradingsystem.indicators.PhaseDetector;
@@ -14,7 +13,6 @@ import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -73,11 +71,6 @@ public class IndicatorServiceTest {
                 .thenReturn(buildPrices(80));
         when(indicatorRepository.findByStockAndDate(eq(stock), any()))
                 .thenReturn(Optional.empty());
-        when(calculator.calculateConsolidation(anyList()))
-                .thenReturn(new ConsolidationResult(
-                        new BigDecimal("110"),   // high
-                        new BigDecimal("100"),   // low
-                        new BigDecimal("10")));  // range
 
         indicatorService.calculateAndSaveIndicators(stock);
 
@@ -93,11 +86,6 @@ public class IndicatorServiceTest {
                 .thenReturn(buildPrices(80));
         when(indicatorRepository.findByStockAndDate(eq(stock), any()))
                 .thenReturn(Optional.of(existing));
-        when(calculator.calculateConsolidation(anyList()))
-                .thenReturn(new ConsolidationResult(
-                        new BigDecimal("110"),   // high
-                        new BigDecimal("100"),   // low
-                        new BigDecimal("10")));  // range
 
         indicatorService.calculateAndSaveIndicators(stock);
 

@@ -68,33 +68,8 @@ class AlertServiceTest {
     }
 
     @Test
-    void shouldCreateBreakoutAlert() {
-        when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(false);
-        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
-                .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
-        when(positionSizeCalculator.calculateShares(any(), any(), any(), any(), any()))
-                .thenReturn(200);
-
-        alertService.createAlertFromScan(scanResult(SetupType.BREAKOUT));
-
-        verify(alertRepository).save(any(Alert.class));
-    }
-
-    @Test
     void shouldSkipWhenPendingAlertExists() {
         when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(true);
-
-        alertService.createAlertFromScan(scanResult(SetupType.BREAKOUT));
-
-        verify(alertRepository, never()).save(any());
-    }
-
-    @Test
-    void shouldRejectWhenRiskDistanceExceedsAdr() {
-        when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(false);
-        // entry 310, stop 300 → risk ≈ 3.2%, ADR bara 1% → förkastas
-        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
-                .thenReturn(Optional.of(indicatorWith("310", "300", "1")));
 
         alertService.createAlertFromScan(scanResult(SetupType.BREAKOUT));
 
@@ -125,10 +100,41 @@ class AlertServiceTest {
     }
 
     @Test
+    void shouldCreateBreakoutAlert() {
+        when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(false);
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(latestPriceWithLow("300")));
+        when(positionSizeCalculator.calculateShares(any(), any(), any(), any(), any()))
+                .thenReturn(200);
+
+        alertService.createAlertFromScan(scanResult(SetupType.BREAKOUT));
+
+        verify(alertRepository).save(any(Alert.class));
+    }
+
+    @Test
+    void shouldRejectWhenRiskDistanceExceedsAdr() {
+        when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(false);
+        // entry 310, dagens lägsta 300 → risk ≈ 3.2%, ADR bara 1% → förkastas
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "1")));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(latestPriceWithLow("300")));
+
+        alertService.createAlertFromScan(scanResult(SetupType.BREAKOUT));
+
+        verify(alertRepository, never()).save(any());
+    }
+
+    @Test
     void usesOffensiveRiskPercent_whenRegimeIsRiskOn() {
         when(marketRegimeService.getLatest()).thenReturn(Optional.of(regime(RegimeStatus.RISK_ON)));
         when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
                 .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(latestPriceWithLow("300")));
 
         alertService.createBreakoutAlert(stock);
 
@@ -141,6 +147,8 @@ class AlertServiceTest {
         when(marketRegimeService.getLatest()).thenReturn(Optional.of(regime(RegimeStatus.RISK_OFF)));
         when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
                 .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(latestPriceWithLow("300")));
 
         alertService.createBreakoutAlert(stock);
 
@@ -153,6 +161,8 @@ class AlertServiceTest {
         when(marketRegimeService.getLatest()).thenReturn(Optional.empty());
         when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
                 .thenReturn(Optional.of(indicatorWith("310", "300", "5")));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(latestPriceWithLow("300")));
 
         alertService.createBreakoutAlert(stock);
 
@@ -219,5 +229,12 @@ class AlertServiceTest {
         i.setConsolidationLow(new BigDecimal(consolidationLow));
         i.setAdr20(new BigDecimal(adr));
         return i;
+    }
+
+    private DailyPrice latestPriceWithLow(String low) {
+        DailyPrice p = new DailyPrice();
+        p.setDate(LocalDate.now());
+        p.setLow(new BigDecimal(low));
+        return p;
     }
 }
