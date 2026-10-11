@@ -1,6 +1,7 @@
 package com.qullamaggie.tradingsystem;
 
 import com.qullamaggie.tradingsystem.data.entity.Position;
+import com.qullamaggie.tradingsystem.data.entity.SetupType;
 import com.qullamaggie.tradingsystem.data.entity.Transaction;
 import com.qullamaggie.tradingsystem.data.entity.TransactionType;
 import com.qullamaggie.tradingsystem.portfolio.PositionSummary;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PositionCalculatorTest {
 
@@ -24,6 +26,7 @@ class PositionCalculatorTest {
     void setUp() {
         calculator = new PositionCalculator();
         position = new Position();
+        position.setSetupType(SetupType.BREAKOUT);
         position.setInitialRisk(BigDecimal.valueOf(3200)); // 200 st, entry 305, stop 289
     }
 
@@ -134,5 +137,77 @@ class PositionCalculatorTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.realizedPnL()));
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.unrealizedPnL()));
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.currentR()));
+    }
+
+    @Test
+    void sellingMoreThanRemaining_throws() {
+        List<Transaction> transactions = List.of(
+                transaction(TransactionType.BUY, 200, BigDecimal.valueOf(305), LocalDateTime.of(2026, 1, 5, 9, 31)),
+                transaction(TransactionType.SELL, 250, BigDecimal.valueOf(320), LocalDateTime.of(2026, 1, 8, 15, 0))
+        );
+
+        assertThrows(IllegalArgumentException.class,
+                () -> calculator.calculateSummary(position, transactions, BigDecimal.valueOf(320)));
+    }
+
+    @Test
+    void transactionAfterPositionWentFlat_throws() {
+        // En efterregistrerad försäljning som tömmer positionen före ett senare tillägg
+        // skulle annars "återöppna" den med nytt snittpris
+        List<Transaction> transactions = List.of(
+                transaction(TransactionType.BUY, 200, BigDecimal.valueOf(305), LocalDateTime.of(2026, 1, 5, 9, 31)),
+                transaction(TransactionType.SELL, 200, BigDecimal.valueOf(320), LocalDateTime.of(2026, 1, 8, 15, 0)),
+                transaction(TransactionType.BUY, 100, BigDecimal.valueOf(325), LocalDateTime.of(2026, 1, 9, 9, 31))
+        );
+
+        assertThrows(IllegalArgumentException.class,
+                () -> calculator.calculateSummary(position, transactions, BigDecimal.valueOf(325)));
+    }
+
+    @Test
+    void short_coverBelowEntry_isProfit() {
+        position.setSetupType(SetupType.PARABOLIC_SHORT);
+        position.setInitialRisk(BigDecimal.valueOf(500)); // 100 st, entry 50, stop 55
+        List<Transaction> transactions = List.of(
+                transaction(TransactionType.SELL, 100, BigDecimal.valueOf(50), LocalDateTime.of(2026, 1, 5, 9, 31)),
+                transaction(TransactionType.BUY, 50, BigDecimal.valueOf(45), LocalDateTime.of(2026, 1, 7, 15, 0))
+        );
+
+        PositionSummary summary = calculator.calculateSummary(position, transactions, BigDecimal.valueOf(46));
+
+        assertEquals(50, summary.remainingShares());
+        assertEquals(0, BigDecimal.valueOf(250).compareTo(summary.realizedPnL()));   // (50-45)*50
+        assertEquals(0, BigDecimal.valueOf(200).compareTo(summary.unrealizedPnL())); // (50-46)*50
+        assertEquals(0, new BigDecimal("0.9").compareTo(summary.currentR()));        // 450 / 500
+    }
+
+    @Test
+    void short_priceAboveEntry_isLoss() {
+        position.setSetupType(SetupType.PARABOLIC_SHORT);
+        position.setInitialRisk(BigDecimal.valueOf(500));
+        List<Transaction> transactions = List.of(
+                transaction(TransactionType.SELL, 100, BigDecimal.valueOf(50), LocalDateTime.of(2026, 1, 5, 9, 31))
+        );
+
+        PositionSummary summary = calculator.calculateSummary(position, transactions, BigDecimal.valueOf(55));
+
+        assertEquals(0, BigDecimal.valueOf(-500).compareTo(summary.unrealizedPnL()));
+        assertEquals(0, BigDecimal.valueOf(-1).compareTo(summary.currentR()));
+    }
+
+    @Test
+    void short_addingSellsRecalculatesAveragePrice() {
+        position.setSetupType(SetupType.PARABOLIC_SHORT);
+        position.setInitialRisk(BigDecimal.valueOf(500));
+        List<Transaction> transactions = List.of(
+                transaction(TransactionType.SELL, 100, BigDecimal.valueOf(50), LocalDateTime.of(2026, 1, 5, 9, 31)),
+                transaction(TransactionType.SELL, 100, BigDecimal.valueOf(54), LocalDateTime.of(2026, 1, 6, 9, 31))
+        );
+
+        PositionSummary summary = calculator.calculateSummary(position, transactions, BigDecimal.valueOf(52));
+
+        assertEquals(200, summary.remainingShares());
+        assertEquals(0, BigDecimal.valueOf(52).compareTo(summary.averagePrice()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.unrealizedPnL()));
     }
 }

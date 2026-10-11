@@ -47,9 +47,11 @@ public class AlertExecutionService {
         BigDecimal actualPrice = fillPrice != null ? fillPrice : alert.getEntryPrice();
         BigDecimal stop = alert.getStopPrice();
 
+        SetupType setupType = setupTypeOf(alert);
+
         Position position = new Position();
         position.setStock(alert.getStock());
-        position.setSetupType(setupTypeOf(alert));
+        position.setSetupType(setupType);
         position.setStopPrice(stop);
         // Referenspunkt för hela livscykeln: breakeven- och trailing-reglerna
         // upptäcker att stoppen flyttats genom att jämföra mot den här
@@ -59,12 +61,13 @@ public class AlertExecutionService {
         position.setRiskPercent(BigDecimal.ZERO);   // se kommentaren nedan
         positionRepository.save(position);
 
-        Transaction buy = new Transaction();
-        buy.setPosition(position);
-        buy.setType(TransactionType.BUY);
-        buy.setShares(actualShares);
-        buy.setPrice(actualPrice);
-        transactionRepository.save(buy);
+        // En blankning öppnas med SELL, en long med BUY
+        Transaction opening = new Transaction();
+        opening.setPosition(position);
+        opening.setType(setupType.openingSide());
+        opening.setShares(actualShares);
+        opening.setPrice(actualPrice);
+        transactionRepository.save(opening);
 
         alert.setStatus(AlertStatus.EXECUTED);
         alertRepository.save(alert);
