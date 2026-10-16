@@ -44,11 +44,13 @@ class ScanServiceTest {
     @Mock private ParabolicShortEvaluator parabolicShortEvaluator;
 
     private ScanService scanService;
+    private BreakoutScanConfig breakoutConfig;
+    private EpisodicPivotScanConfig episodicPivotConfig;
     private Stock stock;
 
     @BeforeEach
     void setUp() {
-        BreakoutScanConfig breakoutConfig = new BreakoutScanConfig(
+        breakoutConfig = new BreakoutScanConfig(
                 new BigDecimal("30"),   // minPriorMove
                 new BigDecimal("100"),  // maxPriorMove
                 new BigDecimal("3"),    // minAdr
@@ -57,13 +59,25 @@ class ScanServiceTest {
                 new BigDecimal("25"),   // maxPullback
                 new BigDecimal("0.8")); // maxVolumeContraction
 
-        EpisodicPivotScanConfig episodicPivotConfig = new EpisodicPivotScanConfig(
+        episodicPivotConfig = new EpisodicPivotScanConfig(
                 new BigDecimal("10"),   // minGap
                 new BigDecimal("1"),    // minRelativeVolume
                 new BigDecimal("2"),    // minVolumeVsYesterday
                 new BigDecimal("50"));  // maxPriorMovePercent
 
-        ParabolicShortConfig parabolicConfig = new ParabolicShortConfig(
+        ParabolicShortConfig parabolicConfig = parabolicConfig(true);
+
+        scanService = new ScanService(
+                dailyPriceRepository, indicatorRepository, scanResultRepository,
+                stockRepository, marketDataProvider, calculator, parabolicConfig,
+                parabolicShortEvaluator, breakoutConfig, episodicPivotConfig);   // minVolumeVsYesterday
+
+        stock = new Stock();
+        stock.setSymbol("AAPL");
+    }
+
+    private ParabolicShortConfig parabolicConfig(boolean enabled) {
+        return new ParabolicShortConfig(
                 BigDecimal.valueOf(5),                  // minDailyGainPercent
                 BigDecimal.valueOf(50),                 // minLargeCapMovePercent
                 BigDecimal.valueOf(120),                // minMidCapMovePercent
@@ -77,15 +91,31 @@ class ScanServiceTest {
                 BigDecimal.valueOf(2),                  // maxChurnPricePercent
                 BigDecimal.valueOf(0.5),               // stopMarginPercent
                 5,                                     // openingRangeMinutes
-                7);                                    // marketCapMaxAgeDays
+                7,                                     // marketCapMaxAgeDays
+                enabled);
+    }
 
-        scanService = new ScanService(
+    // ---------- Parabolic short av/på ----------
+
+    @Test
+    void parabolicScanEnabled_scansEligibleStocks() {
+        when(stockRepository.findByEligibleTrue()).thenReturn(List.of());
+
+        scanService.scanAllStocksForParabolicShort();
+
+        verify(stockRepository).findByEligibleTrue();
+    }
+
+    @Test
+    void parabolicScanDisabled_scansNothing() {
+        ScanService disabled = new ScanService(
                 dailyPriceRepository, indicatorRepository, scanResultRepository,
-                stockRepository, marketDataProvider, calculator, parabolicConfig,
-                parabolicShortEvaluator, breakoutConfig, episodicPivotConfig);   // minVolumeVsYesterday
+                stockRepository, marketDataProvider, calculator, parabolicConfig(false),
+                parabolicShortEvaluator, breakoutConfig, episodicPivotConfig);
 
-        stock = new Stock();
-        stock.setSymbol("AAPL");
+        disabled.scanAllStocksForParabolicShort();
+
+        verifyNoInteractions(stockRepository, parabolicShortEvaluator);
     }
 
     // ---------- Breakout ----------

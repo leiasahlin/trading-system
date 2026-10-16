@@ -39,7 +39,8 @@ class ParabolicShortEvaluatorTest {
                 BigDecimal.valueOf(2),                  // maxChurnPricePercent
                 BigDecimal.valueOf(0.5),                // stopMarginPercent
                 15,                                     // openingRangeMinutes
-                7);                                    // marketCapMaxAgeDays
+                7,                                     // marketCapMaxAgeDays
+                true);                                 // enabled
 
         evaluator = new ParabolicShortEvaluator(config, new IndicatorCalculator());
     }

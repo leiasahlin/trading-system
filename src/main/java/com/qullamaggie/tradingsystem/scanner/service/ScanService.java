@@ -196,6 +196,10 @@ public class ScanService {
     }
 
     public void scanAllStocksForParabolicShort() {
+        if (!parabolicConfig.enabled()) {
+            log.info("Parabolic-scan avstängd (trading.scanner.parabolic.enabled=false)");
+            return;
+        }
         for (Stock s : stockRepository.findByEligibleTrue()) {
             try {
                 scanStockForParabolicShort(s);
