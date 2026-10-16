@@ -27,4 +27,8 @@ public class PositionAlert {
     private AlertStatus status;
 
     private LocalDateTime createdAt;
+
+    /** When this was included in a notification email; null = not sent yet. */
+    @Column(name = "notified_at")
+    private LocalDateTime notifiedAt;
 }

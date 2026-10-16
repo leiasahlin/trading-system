@@ -79,9 +79,9 @@ public class PositionMonitoringService {
         }
 
 
-        // TODO 4: sellRuleEvaluator.shouldExit(maValue, summary.currentPrice())
+        // TODO 4: sellRuleEvaluator.shouldExit(transactions, maValue, summary.currentPrice())
         //         Om true: createAlertIfNotExists(position, PositionAlertType.EXIT, null)
-        if (sellRuleEvaluator.shouldExit(maValue, summary.currentPrice())) {
+        if (sellRuleEvaluator.shouldExit(transactions, maValue, summary.currentPrice())) {
             createAlertIfNotExists(position, PositionAlertType.EXIT, null);
         }
 

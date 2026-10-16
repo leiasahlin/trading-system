@@ -192,18 +192,32 @@ class SellRuleEvaluatorTest {
 
 // --- shouldExit ---
 
-    @Test
-    void closeBelowMa_returnsTrue() {
-        assertTrue(evaluator.shouldExit(BigDecimal.valueOf(315), BigDecimal.valueOf(310)));
+    private List<Transaction> trimmed() {
+        return List.of(
+                transaction(TransactionType.BUY, 200, BigDecimal.valueOf(305), LocalDateTime.of(2026, 1, 5, 9, 31)),
+                transaction(TransactionType.SELL, 100, BigDecimal.valueOf(320), LocalDateTime.of(2026, 1, 8, 15, 0)));
     }
 
     @Test
-    void closeAboveMa_returnsFalse() {
-        assertFalse(evaluator.shouldExit(BigDecimal.valueOf(315), BigDecimal.valueOf(320)));
+    void afterTrim_closeBelowMa_returnsTrue() {
+        assertTrue(evaluator.shouldExit(trimmed(), BigDecimal.valueOf(315), BigDecimal.valueOf(310)));
     }
 
     @Test
-    void closeEqualsMa_returnsFalse() {
-        assertFalse(evaluator.shouldExit(BigDecimal.valueOf(315), BigDecimal.valueOf(315)));
+    void afterTrim_closeAboveMa_returnsFalse() {
+        assertFalse(evaluator.shouldExit(trimmed(), BigDecimal.valueOf(315), BigDecimal.valueOf(320)));
+    }
+
+    @Test
+    void afterTrim_closeEqualsMa_returnsFalse() {
+        assertFalse(evaluator.shouldExit(trimmed(), BigDecimal.valueOf(315), BigDecimal.valueOf(315)));
+    }
+
+    @Test
+    void beforeTrim_closeBelowMa_returnsFalse() {
+        // Dag 1-2: en stängning under MA10 är inget säljskäl, den ursprungliga stoppen gäller
+        List<Transaction> onlyBuy = List.of(
+                transaction(TransactionType.BUY, 200, BigDecimal.valueOf(305), LocalDateTime.of(2026, 1, 5, 9, 31)));
+        assertFalse(evaluator.shouldExit(onlyBuy, BigDecimal.valueOf(315), BigDecimal.valueOf(310)));
     }
 }

@@ -65,12 +65,14 @@ public class SellRuleEvaluator {
     }
 
     /**
-     * True if today's close has fallen below the trailing MA line -
-     * signals that the remaining position should be closed entirely.
+     * True if today's close has fallen below the trailing MA line after the
+     * position has been trimmed - signals that the remainder should be sold.
+     * Before the trim, the initial stop protects the position, not the MA.
      */
-    public boolean shouldExit(BigDecimal maValue, BigDecimal latestClose) {
-        // If lastestClose < maValue, user should exit the stock
-        return latestClose.compareTo(maValue) < 0;
+    public boolean shouldExit(List<Transaction> transactions, BigDecimal maValue, BigDecimal latestClose) {
+        // MA-regeln gäller bara resten efter avsälj - innan dess är det den
+        // ursprungliga stoppen som skyddar positionen
+        return hasPartialSell(transactions) && latestClose.compareTo(maValue) < 0;
     }
 
     private boolean hasPartialSell(List<Transaction> transactions) {

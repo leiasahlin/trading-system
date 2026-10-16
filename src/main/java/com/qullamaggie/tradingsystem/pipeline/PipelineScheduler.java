@@ -5,6 +5,7 @@ import com.qullamaggie.tradingsystem.portfolio.service.OvernightExposureService;
 import com.qullamaggie.tradingsystem.scanner.*;
 import com.qullamaggie.tradingsystem.scanner.service.ParabolicIntradayService;
 import com.qullamaggie.tradingsystem.universe.service.MarketDiscoveryService;
+import com.qullamaggie.tradingsystem.notifications.EveningDigestService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -18,15 +19,17 @@ public class PipelineScheduler {
     private final ParabolicIntradayService parabolicIntradayService;
     private final MarketDiscoveryService marketDiscoveryService;
     private final OvernightExposureService overnightExposureService;
+    private final EveningDigestService eveningDigestService;
 
     public PipelineScheduler(PipelineService pipelineService, IntradayMonitoringService intradayMonitoringService,
                              ParabolicIntradayService parabolicIntradayService, MarketDiscoveryService marketDiscoveryService,
-                             OvernightExposureService overnightExposureService) {
+                             OvernightExposureService overnightExposureService, EveningDigestService eveningDigestService) {
         this.pipelineService = pipelineService;
         this.intradayMonitoringService = intradayMonitoringService;
         this.parabolicIntradayService = parabolicIntradayService;
         this.marketDiscoveryService = marketDiscoveryService;
         this.overnightExposureService = overnightExposureService;
+        this.eveningDigestService = eveningDigestService;
     }
 
     /**
@@ -37,6 +40,8 @@ public class PipelineScheduler {
     @Scheduled(cron = "0 0 17 * * MON-FRI", zone = "America/New_York")
     public void runEveningPipeline() {
         pipelineService.runForAllStocks();
+        // Efter pipelinen, så att kvällens nya alerts och positionsvarningar kommer med
+        eveningDigestService.sendEveningDigest();
     }
 
     /**

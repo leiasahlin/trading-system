@@ -6,6 +6,10 @@ import com.qullamaggie.tradingsystem.data.entity.PositionAlert;
 import com.qullamaggie.tradingsystem.data.entity.PositionAlertType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+
 public interface PositionAlertRepository extends JpaRepository<PositionAlert, Long> {
     boolean existsByPositionAndTypeAndStatus(Position position, PositionAlertType type, AlertStatus status);
+    /** Position alerts not yet included in any notification email. */
+    List<PositionAlert> findByNotifiedAtIsNull();
 }

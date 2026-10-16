@@ -55,4 +55,8 @@ public class Alert {
 
     @Column(name = "risk_percent", precision = 5, scale = 4)
     private BigDecimal riskPercent;
+
+    /** When this was included in a notification email; null = not sent yet. */
+    @Column(name = "notified_at")
+    private LocalDateTime notifiedAt;
 }

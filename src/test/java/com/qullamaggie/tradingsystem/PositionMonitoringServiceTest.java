@@ -73,7 +73,7 @@ class PositionMonitoringServiceTest {
         when(sellRuleEvaluator.shouldMoveStopToBreakeven(any(), any())).thenReturn(false);
         when(sellRuleEvaluator.shouldTrim(any(), any(), any(), any())).thenReturn(false);
         when(sellRuleEvaluator.calculateNewTrailingStop(any(), any())).thenReturn(Optional.empty());
-        when(sellRuleEvaluator.shouldExit(any(), any())).thenReturn(false);
+        when(sellRuleEvaluator.shouldExit(any(), any(), any())).thenReturn(false);
     }
 
     @Test
@@ -136,7 +136,7 @@ class PositionMonitoringServiceTest {
 
     @Test
     void exitTriggered_createsExitAlert() {
-        when(sellRuleEvaluator.shouldExit(any(), any())).thenReturn(true);
+        when(sellRuleEvaluator.shouldExit(any(), any(), any())).thenReturn(true);
         when(positionAlertRepository.existsByPositionAndTypeAndStatus(position, PositionAlertType.EXIT, AlertStatus.NEW))
                 .thenReturn(false);
 
@@ -162,6 +162,6 @@ class PositionMonitoringServiceTest {
     void usesConfiguredMaPeriod_toFetchMa10() {
         positionMonitoringService.monitorAllOpenPositions();
 
-        verify(sellRuleEvaluator).shouldExit(eq(BigDecimal.valueOf(310)), any());
+        verify(sellRuleEvaluator).shouldExit(any(), eq(BigDecimal.valueOf(310)), any());
     }
 }

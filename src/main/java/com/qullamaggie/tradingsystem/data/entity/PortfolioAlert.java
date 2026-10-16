@@ -32,4 +32,8 @@ public class PortfolioAlert {
     private AlertStatus status = AlertStatus.NEW;
 
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    /** When this was included in a notification email; null = not sent yet. */
+    @Column(name = "notified_at")
+    private LocalDateTime notifiedAt;
 }
