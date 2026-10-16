@@ -54,11 +54,12 @@ class EveningDigestServiceTest {
                 new BigDecimal("0.005"), new BigDecimal("0.01"),
                 new BigDecimal("0.30"), new BigDecimal("0.20"));
 
+        NotificationDataLoader loader = new NotificationDataLoader(indicatorRepository, stockRepository,
+                positionSummaryProvider, new MarketRegimeConfig(List.of("SPY"), RegimeMode.ALL, 10, 20),
+                accountConfig, new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10));
+
         service = new EveningDigestService(alertRepository, positionAlertRepository, portfolioAlertRepository,
-                indicatorRepository, stockRepository, positionSummaryProvider, marketRegimeService,
-                new MarketRegimeConfig(List.of("SPY"), RegimeMode.ALL, 10, 20),
-                accountConfig, new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10),
-                new EveningDigestFormatter(new EmailRenderer()), notificationService);
+                marketRegimeService, loader, new EveningDigestFormatter(new EmailRenderer()), notificationService);
 
         mstr = new Stock();
         mstr.setSymbol("MSTR");
@@ -224,5 +225,46 @@ class EveningDigestServiceTest {
         String text = sentEmail().text();
         assertTrue(text.contains("Marknaden går uppåt."));
         assertTrue(text.contains("SPY: 10-dagarssnittet 768,48 ligger över 20-dagarssnittet 765,64 → uppåt."));
+    }
+
+    // --- Påminnelse om stoppbrott ---
+
+    private PositionAlert stopBreach(Position position, LocalDateTime notifiedAt) {
+        PositionAlert alert = new PositionAlert();
+        alert.setPosition(position);
+        alert.setType(PositionAlertType.STOP_BREACH);
+        alert.setStatus(AlertStatus.NEW);
+        alert.setTriggerPrice(new BigDecimal("94"));
+        alert.setCreatedAt(LocalDateTime.now().minusDays(1));
+        alert.setNotifiedAt(notifiedAt);
+        return alert;
+    }
+
+    @Test
+    void mailedStopBreach_positionStillOpen_isRepeatedWithRedSubject() {
+        Position position = openPosition();
+        when(positionAlertRepository.findByTypeAndStatus(PositionAlertType.STOP_BREACH, AlertStatus.NEW))
+                .thenReturn(List.of(stopBreach(position, LocalDateTime.now().minusDays(1))));
+        when(notificationService.send(any(EmailContent.class))).thenReturn(true);
+
+        service.sendEveningDigest();
+
+        EmailContent email = sentEmail();
+        assertTrue(email.subject().startsWith("🔴 Kväll "));
+        assertTrue(email.subject().contains("stop nådd MSTR (ej sålt)"));
+        assertTrue(email.text().contains("Kurs vid larmet: 94,00 $"));
+    }
+
+    @Test
+    void stopBreach_positionClosed_isNotRepeated() {
+        Position closed = openPosition();
+        closed.setStatus(PositionStatus.STOPPED);
+        when(positionAlertRepository.findByTypeAndStatus(PositionAlertType.STOP_BREACH, AlertStatus.NEW))
+                .thenReturn(List.of(stopBreach(closed, LocalDateTime.now().minusDays(1))));
+        when(notificationService.send(any(EmailContent.class))).thenReturn(true);
+
+        service.sendEveningDigest();
+
+        assertTrue(sentEmail().subject().endsWith("ingen åtgärd"));
     }
 }

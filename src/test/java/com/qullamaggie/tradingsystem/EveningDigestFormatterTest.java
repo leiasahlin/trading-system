@@ -43,7 +43,7 @@ class EveningDigestFormatterTest {
     private EveningDigest digest(List<BuySignal> buys, List<PositionWarning> warnings,
                                  List<OvernightWarning> overnight) {
         return new EveningDigest(DATE, RegimeStatus.RISK_ON, RegimeMode.ALL, List.of(SPY), ACCOUNT, RULES,
-                buys, warnings, overnight);
+                List.of(), buys, warnings, overnight);
     }
 
     private EmailContent format(BuySignal... buys) {
@@ -68,7 +68,7 @@ class EveningDigestFormatterTest {
     private PositionWarning nvda(PositionAlertType type, long daysHeld, PositionSummary summary,
                                  BigDecimal suggestedStop) {
         return new PositionWarning(3, "NVDA", SetupType.BREAKOUT, type, suggestedStop, new BigDecimal("115.50"),
-                new BigDecimal("2000"), daysHeld, summary, new BigDecimal("131.20"));
+                new BigDecimal("2000"), daysHeld, summary, new BigDecimal("131.20"), null);
     }
 
     // --- Ämnesrad ---
@@ -306,7 +306,7 @@ class EveningDigestFormatterTest {
     @Test
     void riskOff_saysNoNewBreakouts() {
         EveningDigest riskOff = new EveningDigest(DATE, RegimeStatus.RISK_OFF, RegimeMode.ALL, List.of(SPY),
-                ACCOUNT, RULES, List.of(), List.of(), List.of());
+                ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of());
 
         assertTrue(formatter.format(riskOff).text()
                 .contains("Marknaden går nedåt. Systemet letar inte efter nya breakouts, men bevakar dina positioner."));
@@ -315,7 +315,7 @@ class EveningDigestFormatterTest {
     @Test
     void noRegime_saysNotAssessed_andMissingDataShown() {
         EveningDigest none = new EveningDigest(DATE, null, RegimeMode.ALL,
-                List.of(new IndexReading("SPY", 10, null, 20, null)), ACCOUNT, RULES, List.of(), List.of(), List.of());
+                List.of(new IndexReading("SPY", 10, null, 20, null)), ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of());
 
         String text = formatter.format(none).text();
 
@@ -327,7 +327,7 @@ class EveningDigestFormatterTest {
     void severalIndexes_explainsRegimeMode() {
         IndexReading qqq = new IndexReading("QQQ", 10, new BigDecimal("500"), 20, new BigDecimal("510"));
         EveningDigest two = new EveningDigest(DATE, RegimeStatus.RISK_OFF, RegimeMode.ALL, List.of(SPY, qqq),
-                ACCOUNT, RULES, List.of(), List.of(), List.of());
+                ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of());
 
         String text = formatter.format(two).text();
 
@@ -344,5 +344,39 @@ class EveningDigestFormatterTest {
         assertTrue(html.contains("<b>Köp MSTR</b> – breakout"));
         assertTrue(html.contains(">Högsta möjliga förlust</td>"));
         assertTrue(html.contains("Så har systemet räknat"));
+    }
+
+    // --- Stoppbrott och påminnelse ---
+
+    private PositionWarning nvdaBreach(BigDecimal triggerPrice) {
+        return new PositionWarning(3, "NVDA", SetupType.BREAKOUT, PositionAlertType.STOP_BREACH, null,
+                new BigDecimal("115.50"), new BigDecimal("2000"), 2, nvdaSummary(), null, triggerPrice);
+    }
+
+    @Test
+    void stopBreach_withTriggerPrice_showsPriceAndAvanzaNote() {
+        String text = format(nvdaBreach(new BigDecimal("114.20"))).text();
+
+        assertTrue(text.contains("Stop loss: 115,50 $\nKurs vid larmet: 114,20 $\n"));
+        assertTrue(text.contains("• Kursen gick under din stop loss 115,50 $: en 5-minutersstapel stängde på 114,20 $."));
+        assertTrue(text.contains("• Har du en stop loss-order i Avanza kan den redan ha gått igenom."));
+    }
+
+    @Test
+    void unhandledStopBreach_redSubject_andShownFirst() {
+        EveningDigest digest = new EveningDigest(DATE, RegimeStatus.RISK_ON, RegimeMode.ALL, List.of(SPY),
+                ACCOUNT, RULES,
+                List.of(new UnhandledStopBreach(nvdaBreach(new BigDecimal("114.20")), LocalDate.of(2026, 10, 14))),
+                List.of(mstr()), List.of(), List.of());
+
+        EmailContent email = formatter.format(digest);
+
+        assertEquals("🔴 Kväll 16/10: stop nådd NVDA (ej sålt), köp MSTR", email.subject());
+        String text = email.text();
+        assertTrue(text.indexOf("━━ EJ ÅTGÄRDAT ━━") < text.indexOf("━━ KÖP / SÄLJ ━━"));
+        assertTrue(text.contains("SÄLJ NVDA (stop nådd 14/10, fortfarande öppen)\n"
+                + "Sälj: alla dina 400 st\nStop loss: 115,50 $\nKurs vid larmet: 114,20 $\n"));
+        assertTrue(text.contains("registrera försäljningen med kommandot nedan så försvinner påminnelsen."));
+        assertTrue(text.contains("\"shares\": 400, \"price\": 115.50"));
     }
 }

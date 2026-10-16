@@ -28,6 +28,10 @@ public class PositionAlert {
 
     private LocalDateTime createdAt;
 
+    /** The price that triggered the alert, e.g. the 5-minute close below the stop; null if not recorded. */
+    @Column(name = "trigger_price", precision = 12, scale = 4)
+    private BigDecimal triggerPrice;
+
     /** When this was included in a notification email; null = not sent yet. */
     @Column(name = "notified_at")
     private LocalDateTime notifiedAt;

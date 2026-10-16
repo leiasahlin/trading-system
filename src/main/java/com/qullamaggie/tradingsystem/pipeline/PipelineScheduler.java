@@ -3,6 +3,7 @@ package com.qullamaggie.tradingsystem.pipeline;
 import com.qullamaggie.tradingsystem.notifications.EveningDigestService;
 import com.qullamaggie.tradingsystem.notifications.FailureNotifier;
 import com.qullamaggie.tradingsystem.notifications.ScheduledJob;
+import com.qullamaggie.tradingsystem.notifications.UrgentNotificationService;
 import com.qullamaggie.tradingsystem.portfolio.service.IntradayMonitoringService;
 import com.qullamaggie.tradingsystem.portfolio.service.OvernightExposureService;
 import com.qullamaggie.tradingsystem.scanner.ParabolicShortConfig;
@@ -31,19 +32,22 @@ public class PipelineScheduler {
     private final MarketDiscoveryService marketDiscoveryService;
     private final OvernightExposureService overnightExposureService;
     private final EveningDigestService eveningDigestService;
+    private final UrgentNotificationService urgentNotificationService;
     private final FailureNotifier failureNotifier;
     private final ParabolicShortConfig parabolicConfig;
 
     public PipelineScheduler(PipelineService pipelineService, IntradayMonitoringService intradayMonitoringService,
                              ParabolicIntradayService parabolicIntradayService, MarketDiscoveryService marketDiscoveryService,
                              OvernightExposureService overnightExposureService, EveningDigestService eveningDigestService,
-                             FailureNotifier failureNotifier, ParabolicShortConfig parabolicConfig) {
+                             UrgentNotificationService urgentNotificationService, FailureNotifier failureNotifier,
+                             ParabolicShortConfig parabolicConfig) {
         this.pipelineService = pipelineService;
         this.intradayMonitoringService = intradayMonitoringService;
         this.parabolicIntradayService = parabolicIntradayService;
         this.marketDiscoveryService = marketDiscoveryService;
         this.overnightExposureService = overnightExposureService;
         this.eveningDigestService = eveningDigestService;
+        this.urgentNotificationService = urgentNotificationService;
         this.failureNotifier = failureNotifier;
         this.parabolicConfig = parabolicConfig;
     }
@@ -68,7 +72,10 @@ public class PipelineScheduler {
      */
     @Scheduled(cron = "0 45 9 * * MON-FRI", zone = "America/New_York")
     public void runMorningEpisodicPivot() {
-        run(ScheduledJob.EP_SCAN, pipelineService::runEpisodicPivotScanOnly);
+        run(ScheduledJob.EP_SCAN, () -> {
+            pipelineService.runEpisodicPivotScanOnly();
+            urgentNotificationService.sendEpSignals();
+        });
     }
 
     /**
@@ -88,7 +95,10 @@ public class PipelineScheduler {
      */
     @Scheduled(cron = "0 30 15 * * MON-FRI", zone = "America/New_York")
     public void runOvernightExposureCheck() {
-        run(ScheduledJob.OVERNIGHT_CHECK, overnightExposureService::checkOvernightExposure);
+        run(ScheduledJob.OVERNIGHT_CHECK, () -> {
+            overnightExposureService.checkOvernightExposure();
+            urgentNotificationService.sendOvernightWarnings();
+        });
     }
 
     @Scheduled(cron = "0 */5 9-16 * * MON-FRI", zone = "America/New_York")
@@ -103,6 +113,7 @@ public class PipelineScheduler {
             if (parabolicConfig.enabled()) {
                 parabolicIntradayService.checkCandidates();
             }
+            urgentNotificationService.sendStopBreaches();
         });
     }
 

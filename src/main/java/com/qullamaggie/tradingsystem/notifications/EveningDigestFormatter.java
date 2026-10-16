@@ -52,6 +52,20 @@ public class EveningDigestFormatter {
         List<Block> commands = new ArrayList<>();
         List<String> subjectParts = new ArrayList<>();
 
+        // Överst och i ämnesraden: stoppbrott där positionen fortfarande är öppen
+        List<Block> unhandled = new ArrayList<>();
+        for (UnhandledStopBreach breach : digest.unhandledStopBreaches()) {
+            PositionWarning warning = breach.warning();
+            subjectParts.add("stop nådd " + warning.symbol() + " (ej sålt)");
+            unhandled.add(unhandledItem(breach));
+            unhandled.add(new Paragraph("Systemet ser fortfarande positionen som öppen. Har du redan sålt, "
+                    + "registrera försäljningen med kommandot nedan så försvinner påminnelsen."));
+            Command command = sellCommand(warning);
+            if (command != null) {
+                unhandled.add(command);
+            }
+        }
+
         for (BuySignal signal : digest.buySignals()) {
             subjectParts.add((signal.setup().isShort() ? "blanka " : "köp ") + signal.symbol());
             actions.add(buyItem(signal));
@@ -75,6 +89,9 @@ public class EveningDigestFormatter {
         calculations.add(marketCalculation(digest));
 
         List<Section> sections = new ArrayList<>();
+        if (!unhandled.isEmpty()) {
+            sections.add(new Section("Ej åtgärdat", unhandled));
+        }
         sections.add(new Section("Köp / sälj", actions.isEmpty()
                 ? List.<Block>of(new Paragraph("Inget att köpa eller sälja i kväll."))
                 : actions));
@@ -83,12 +100,13 @@ public class EveningDigestFormatter {
         if (!commands.isEmpty()) {
             sections.add(new Section("Registrera i systemet", commands));
         }
-        return new EmailDocument(subject(digest.date(), subjectParts), sections);
+        return new EmailDocument(subject(digest.date(), subjectParts, !unhandled.isEmpty()), sections);
     }
 
     // --- Ämnesrad ---
 
-    private String subject(LocalDate date, List<String> parts) {
+    /** @param urgent true turns the subject red - something that should already be done isn't */
+    private String subject(LocalDate date, List<String> parts, boolean urgent) {
         String day = date.format(SUBJECT_DATE);
         if (parts.isEmpty()) {
             return "⚪ Kväll " + day + ": ingen åtgärd";
@@ -97,7 +115,7 @@ public class EveningDigestFormatter {
         if (parts.size() > MAX_SUBJECT_ACTIONS) {
             shown += " +" + (parts.size() - MAX_SUBJECT_ACTIONS) + " till";
         }
-        return "🟢 Kväll " + day + ": " + shown;
+        return (urgent ? "🔴" : "🟢") + " Kväll " + day + ": " + shown;
     }
 
     private String subjectLabel(PositionWarning warning) {
@@ -113,7 +131,7 @@ public class EveningDigestFormatter {
 
     // --- Köpsignaler ---
 
-    private Item buyItem(BuySignal signal) {
+    Item buyItem(BuySignal signal) {
         boolean isShort = signal.setup().isShort();
         BigDecimal riskPerShare = signal.entry().subtract(signal.stop()).abs();
         BigDecimal shares = BigDecimal.valueOf(signal.shares());
@@ -126,7 +144,7 @@ public class EveningDigestFormatter {
                 new Row("Högsta möjliga förlust", "ca " + whole(riskPerShare.multiply(shares)) + " $")));
     }
 
-    private Bullets buyCalculation(BuySignal signal, AccountConfig account) {
+    Bullets buyCalculation(BuySignal signal, AccountConfig account) {
         BigDecimal riskPerShare = signal.entry().subtract(signal.stop()).abs();
         List<String> lines = new ArrayList<>(entryAndStopExplanation(signal));
 
@@ -187,7 +205,7 @@ public class EveningDigestFormatter {
         };
     }
 
-    private Command buyCommand(BuySignal signal) {
+    Command buyCommand(BuySignal signal) {
         return new Command(
                 (signal.setup().isShort() ? "Blankat " : "Köpt ") + signal.symbol()
                         + "? Ändra antal och pris om det blev annorlunda.",
@@ -198,7 +216,7 @@ public class EveningDigestFormatter {
 
     // --- Positionsvarningar ---
 
-    private Item warningItem(PositionWarning warning) {
+    Item warningItem(PositionWarning warning) {
         String symbol = warning.symbol();
         return switch (warning.type()) {
             case TRIM -> trimItem(warning);
@@ -210,9 +228,7 @@ public class EveningDigestFormatter {
             case EXIT -> new Item(reduceVerb(warning) + " " + symbol, "resten av positionen", List.of(
                     new Row(reduceVerb(warning), allShares(warning.summary())),
                     new Row("Pris", marketPrice(warning.summary()))));
-            case STOP_BREACH -> new Item("Stop loss nådd på " + symbol, null, List.of(
-                    new Row(reduceVerb(warning), allShares(warning.summary()) + ", om det inte redan skett"),
-                    new Row("Stop loss", stopText(warning.currentStop()))));
+            case STOP_BREACH -> new Item("Stop loss nådd på " + symbol, null, stopBreachRows(warning, true));
         };
     }
 
@@ -233,7 +249,7 @@ public class EveningDigestFormatter {
                 new Row("Vid försäljning", "flytta stoppen till inköpspriset " + price(summary.averagePrice()) + " $")));
     }
 
-    private Bullets warningCalculation(PositionWarning warning, SellRuleConfig rules) {
+    Bullets warningCalculation(PositionWarning warning, SellRuleConfig rules) {
         String symbol = warning.symbol();
         String ma = rules.maPeriod() + "-dagarssnittet";
         PositionSummary summary = warning.summary();
@@ -258,7 +274,11 @@ public class EveningDigestFormatter {
             }
             case STOP_BREACH -> new Bullets(symbol + ", stop loss nådd", List.of(
                     "Kursen gick " + (warning.setup().isShort() ? "över" : "under") + " din stop loss "
-                            + stopText(warning.currentStop()) + ". Strategin: sälj hela positionen när stoppen nås."));
+                            + stopText(warning.currentStop())
+                            + (warning.triggerPrice() == null ? "." : ": en 5-minutersstapel stängde på "
+                                    + price(warning.triggerPrice()) + " $.")
+                            + " Strategin: sälj hela positionen när stoppen nås.",
+                    "Har du en stop loss-order i Avanza kan den redan ha gått igenom. Kolla det innan du säljer."));
         };
     }
 
@@ -292,7 +312,7 @@ public class EveningDigestFormatter {
     }
 
     /** A pre-filled command for registering the sale; null if there's no data to fill it with. */
-    private Command sellCommand(PositionWarning warning) {
+    Command sellCommand(PositionWarning warning) {
         PositionSummary summary = warning.summary();
         if (summary == null || summary.remainingShares() == 0) {
             return null;
@@ -317,16 +337,34 @@ public class EveningDigestFormatter {
                         + "\", \"shares\": " + shares + ", \"price\": " + json(price) + "}'");
     }
 
+    private List<Row> stopBreachRows(PositionWarning warning, boolean mayAlreadyBeSold) {
+        List<Row> rows = new ArrayList<>();
+        rows.add(new Row(reduceVerb(warning), allShares(warning.summary())
+                + (mayAlreadyBeSold ? ", om det inte redan skett" : "")));
+        rows.add(new Row("Stop loss", stopText(warning.currentStop())));
+        if (warning.triggerPrice() != null) {
+            rows.add(new Row("Kurs vid larmet", price(warning.triggerPrice()) + " $"));
+        }
+        return rows;
+    }
+
+    private Item unhandledItem(UnhandledStopBreach breach) {
+        PositionWarning warning = breach.warning();
+        String when = breach.breachedOn() == null ? "" : " " + breach.breachedOn().format(SUBJECT_DATE);
+        return new Item(reduceVerb(warning) + " " + warning.symbol(), "stop nådd" + when + ", fortfarande öppen",
+                stopBreachRows(warning, false));
+    }
+
     // --- Övernatt ---
 
-    private Item overnightItem(OvernightWarning warning, AccountConfig account) {
+    Item overnightItem(OvernightWarning warning, AccountConfig account) {
         return new Item("Minska " + warning.name(), "övernattsrisk", List.of(
                 new Row("Sälj", whole(warning.sharesToSell()) + " st"),
                 new Row("Andel av kontot", oneDecimal(warning.weightPercent()) + " % (max "
                         + percent(account.maxOvernightPositionPercent()) + " %)")));
     }
 
-    private Bullets overnightCalculation(OvernightWarning warning, AccountConfig account) {
+    Bullets overnightCalculation(OvernightWarning warning, AccountConfig account) {
         return new Bullets(warning.name() + ", minska", List.of(
                 warning.name() + " är " + oneDecimal(warning.weightPercent()) + " % av kontot. Strategin: högst "
                         + percent(account.maxOvernightPositionPercent()) + " % i en position över natten, "

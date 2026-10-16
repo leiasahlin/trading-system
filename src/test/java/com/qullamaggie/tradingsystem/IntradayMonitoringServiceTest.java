@@ -12,6 +12,7 @@ import com.qullamaggie.tradingsystem.portfolio.service.IntradayMonitoringService
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -58,7 +60,9 @@ class IntradayMonitoringServiceTest {
 
         service.checkAllOpenPositions();
 
-        verify(positionAlertRepository).save(any(PositionAlert.class));
+        ArgumentCaptor<PositionAlert> captor = ArgumentCaptor.forClass(PositionAlert.class);
+        verify(positionAlertRepository).save(captor.capture());
+        assertEquals(0, new BigDecimal("289").compareTo(captor.getValue().getTriggerPrice()));
     }
 
     @Test

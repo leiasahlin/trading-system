@@ -15,13 +15,16 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final EveningDigestService eveningDigestService;
+    private final UrgentNotificationService urgentNotificationService;
     private final NotificationConfig config;
 
     public NotificationController(NotificationService notificationService,
                                   EveningDigestService eveningDigestService,
+                                  UrgentNotificationService urgentNotificationService,
                                   NotificationConfig config) {
         this.notificationService = notificationService;
         this.eveningDigestService = eveningDigestService;
+        this.urgentNotificationService = urgentNotificationService;
         this.config = config;
     }
 
@@ -37,6 +40,18 @@ public class NotificationController {
     @PostMapping("/evening-digest")
     public ResponseEntity<String> sendEveningDigest() {
         return ResponseEntity.ok(result(eveningDigestService.sendEveningDigest(), "Kvällsmejl"));
+    }
+
+    /**
+     * Sends every urgent email that's waiting (stop breaches, overnight
+     * warnings, EP signals) - the same thing the scheduled jobs do.
+     */
+    @PostMapping("/urgent")
+    public ResponseEntity<String> sendUrgent() {
+        int sent = urgentNotificationService.sendAllPending();
+        return ResponseEntity.ok(sent == 0
+                ? "Inga brådskande mejl skickades (inget väntar, eller notiser är avstängda)"
+                : sent + " brådskande mejl skickade till " + config.to());
     }
 
     private String result(boolean sent, String what) {

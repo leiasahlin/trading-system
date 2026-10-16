@@ -30,13 +30,15 @@ public record EveningDigest(
         List<IndexReading> indexReadings,
         AccountConfig account,
         SellRuleConfig sellRules,
+        List<UnhandledStopBreach> unhandledStopBreaches,
         List<BuySignal> buySignals,
         List<PositionWarning> positionWarnings,
         List<OvernightWarning> overnightWarnings
 ) {
     /** True if anything in the email asks the user to do something. */
     public boolean hasActions() {
-        return !buySignals.isEmpty() || !positionWarnings.isEmpty() || !overnightWarnings.isEmpty();
+        return !unhandledStopBreaches.isEmpty() || !buySignals.isEmpty()
+                || !positionWarnings.isEmpty() || !overnightWarnings.isEmpty();
     }
 
     /** One market index's moving averages; the MAs are null if there was no data. */
@@ -56,10 +58,15 @@ public record EveningDigest(
      * @param currentStop   the position's stop right now
      * @param summary       null if no price data was available
      * @param maValue       the trailing moving average; null if no indicator data
+     * @param triggerPrice  for stop breaches, the price that broke the stop; otherwise null
      */
     public record PositionWarning(long positionId, String symbol, SetupType setup, PositionAlertType type,
                                   BigDecimal suggestedStop, BigDecimal currentStop, BigDecimal initialRisk,
-                                  long daysHeld, PositionSummary summary, BigDecimal maValue) {}
+                                  long daysHeld, PositionSummary summary, BigDecimal maValue,
+                                  BigDecimal triggerPrice) {}
+
+    /** A stop breach that was mailed, but the position is still open - the most dangerous state. */
+    public record UnhandledStopBreach(PositionWarning warning, LocalDate breachedOn) {}
 
     public record OvernightWarning(String name, BigDecimal weightPercent, int sharesToSell) {}
 }

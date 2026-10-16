@@ -71,6 +71,8 @@ public class IntradayMonitoringService {
             PositionAlert alert = new PositionAlert();
             alert.setPosition(position);
             alert.setType(PositionAlertType.STOP_BREACH);
+            // Sparas så mejlet kan visa hur långt under stoppen kursen gick
+            alert.setTriggerPrice(lastClose);
             alert.setStatus(AlertStatus.NEW);
             alert.setCreatedAt(LocalDateTime.now());
             positionAlertRepository.save(alert);

@@ -3,6 +3,7 @@ package com.qullamaggie.tradingsystem;
 import com.qullamaggie.tradingsystem.notifications.EveningDigestService;
 import com.qullamaggie.tradingsystem.notifications.FailureNotifier;
 import com.qullamaggie.tradingsystem.notifications.ScheduledJob;
+import com.qullamaggie.tradingsystem.notifications.UrgentNotificationService;
 import com.qullamaggie.tradingsystem.pipeline.PipelineScheduler;
 import com.qullamaggie.tradingsystem.pipeline.PipelineService;
 import com.qullamaggie.tradingsystem.portfolio.service.IntradayMonitoringService;
@@ -34,6 +35,7 @@ class PipelineSchedulerTest {
     @Mock private MarketDiscoveryService marketDiscoveryService;
     @Mock private OvernightExposureService overnightExposureService;
     @Mock private EveningDigestService eveningDigestService;
+    @Mock private UrgentNotificationService urgentNotificationService;
     @Mock private FailureNotifier failureNotifier;
 
     private PipelineScheduler scheduler;
@@ -42,7 +44,8 @@ class PipelineSchedulerTest {
     void setUp() {
         // ParabolicShortConfig används bara av intradagsloopen, som inte testas här
         scheduler = new PipelineScheduler(pipelineService, intradayMonitoringService, parabolicIntradayService,
-                marketDiscoveryService, overnightExposureService, eveningDigestService, failureNotifier, null);
+                marketDiscoveryService, overnightExposureService, eveningDigestService, urgentNotificationService,
+                failureNotifier, null);
     }
 
     @Test
@@ -99,5 +102,32 @@ class PipelineSchedulerTest {
         scheduler.runMarketDiscovery();
 
         verify(failureNotifier).notifyFailure(same(ScheduledJob.DISCOVERY), any(RuntimeException.class));
+    }
+
+    @Test
+    void episodicPivot_sendsEpSignalsAfterScan() {
+        scheduler.runMorningEpisodicPivot();
+
+        var order = inOrder(pipelineService, urgentNotificationService);
+        order.verify(pipelineService).runEpisodicPivotScanOnly();
+        order.verify(urgentNotificationService).sendEpSignals();
+    }
+
+    @Test
+    void episodicPivotFails_noUrgentMails() {
+        doThrow(new RuntimeException("API svarar inte")).when(pipelineService).runEpisodicPivotScanOnly();
+
+        scheduler.runMorningEpisodicPivot();
+
+        verifyNoInteractions(urgentNotificationService);
+    }
+
+    @Test
+    void overnightCheck_sendsOvernightWarningsAfterCheck() {
+        scheduler.runOvernightExposureCheck();
+
+        var order = inOrder(overnightExposureService, urgentNotificationService);
+        order.verify(overnightExposureService).checkOvernightExposure();
+        order.verify(urgentNotificationService).sendOvernightWarnings();
     }
 }
