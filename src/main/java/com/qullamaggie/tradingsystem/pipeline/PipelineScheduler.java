@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalTime;
 import java.time.ZoneId;
 
@@ -119,8 +120,11 @@ public class PipelineScheduler {
 
     /** @return true if the job finished, false if it failed (and was reported) */
     private boolean run(ScheduledJob job, Runnable task) {
+        long start = System.nanoTime();
         try {
             task.run();
+            long elapsed = Duration.ofNanos(System.nanoTime() - start).toMillis();
+            log.info("{} klar på {} ms", job.displayName(), elapsed);
             return true;
         } catch (RuntimeException e) {
             log.error("{} misslyckades", job.displayName(), e);

@@ -51,12 +51,12 @@ public class NotificationController {
         int sent = urgentNotificationService.sendAllPending();
         return ResponseEntity.ok(sent == 0
                 ? "Inga brådskande mejl skickades (inget väntar, eller notiser är avstängda)"
-                : sent + " brådskande mejl skickade till " + config.to());
+                : sent + " brådskande mejl skickade till " + config.recipientsText());
     }
 
     private String result(boolean sent, String what) {
         return sent
-                ? what + " skickat till " + config.to()
+                ? what + " skickat till " + config.recipientsText()
                 : "Notiser är avstängda (trading.notifications.enabled=false)";
     }
 

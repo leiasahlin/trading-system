@@ -15,6 +15,8 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -25,11 +27,16 @@ class NotificationServiceTest {
     @Mock private JavaMailSender mailSender;
 
     private NotificationService enabled() {
-        return new NotificationService(mailSender, new NotificationConfig("leia@example.com", true));
+        return new NotificationService(mailSender, new NotificationConfig(List.of("leia@example.com"), true));
     }
 
     private NotificationService disabled() {
-        return new NotificationService(mailSender, new NotificationConfig("leia@example.com", false));
+        return new NotificationService(mailSender, new NotificationConfig(List.of("leia@example.com"), false));
+    }
+
+    private NotificationService twoRecipients() {
+        return new NotificationService(mailSender,
+                new NotificationConfig(List.of("leia@example.com", "anvandare@example.com"), true));
     }
 
     // --- Vanlig text ---
@@ -45,6 +52,15 @@ class NotificationServiceTest {
         assertArrayEquals(new String[]{"leia@example.com"}, message.getTo());
         assertEquals("[Qullamaggie] MSTR breakout", message.getSubject());
         assertEquals("Entry 171,19", message.getText());
+    }
+
+    @Test
+    void send_toSeveralRecipients_addressesAll() {
+        twoRecipients().send("Test", "Test");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(captor.capture());
+        assertArrayEquals(new String[]{"leia@example.com", "anvandare@example.com"}, captor.getValue().getTo());
     }
 
     @Test
@@ -79,6 +95,19 @@ class NotificationServiceTest {
     }
 
     @Test
+    void sendHtml_toSeveralRecipients_addressesAll() throws Exception {
+        when(mailSender.createMimeMessage()).thenReturn(new MimeMessage((Session) null));
+
+        twoRecipients().send(new EmailContent("Kväll", "text", "<p>html</p>"));
+
+        ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
+        verify(mailSender).send(captor.capture());
+        MimeMessage message = captor.getValue();
+        assertEquals(2, message.getAllRecipients().length);
+        assertEquals("anvandare@example.com", message.getAllRecipients()[1].toString());
+    }
+
+    @Test
     void sendHtml_whenDisabled_buildsNothing() {
         assertFalse(disabled().send(new EmailContent("Kväll", "text", "<p>html</p>")));
 
@@ -89,11 +118,22 @@ class NotificationServiceTest {
 
     @Test
     void config_enabledWithoutRecipient_throws() {
-        assertThrows(IllegalArgumentException.class, () -> new NotificationConfig("", true));
+        assertThrows(IllegalArgumentException.class, () -> new NotificationConfig(List.of(), true));
+        assertThrows(IllegalArgumentException.class, () -> new NotificationConfig(List.of(" "), true));
+        assertThrows(IllegalArgumentException.class, () -> new NotificationConfig(null, true));
     }
 
     @Test
     void config_disabledWithoutRecipient_isAllowed() {
         assertDoesNotThrow(() -> new NotificationConfig(null, false));
+    }
+
+    @Test
+    void config_trimsSpacesAroundAddresses() {
+        NotificationConfig config = new NotificationConfig(
+                List.of(" leia@example.com", "anvandare@example.com "), true);
+
+        assertEquals("leia@example.com, anvandare@example.com", config.recipientsText());
+        assertArrayEquals(new String[]{"leia@example.com", "anvandare@example.com"}, config.recipients());
     }
 }

@@ -37,31 +37,42 @@ public class IntradayMonitoringService {
     }
 
     public void checkAllOpenPositions() {
+        int checked = 0;
+        int breached = 0;
+        int failed = 0;
+
         for (Position position : positionRepository.findByStatus(PositionStatus.OPEN)) {
             try {
-                checkPosition(position);
+                if (checkPosition(position)) {
+                    breached++;
+                }
+                checked++;
             } catch (Exception e) {
                 log.warn("Intradagsbevakning misslyckades för {}: {}",
                         position.getStock().getSymbol(), e.getMessage());
+                failed++;
             }
         }
+        log.info("Stoppbevakning: {} kontrollerade, {} stoppbrott, {} fel",
+                checked, breached, failed);
     }
 
-    private void checkPosition(Position position) {
+    /** @return true if a new stop breach alert was created */
+    private boolean checkPosition(Position position) {
         BigDecimal stop = position.getStopPrice();
         if (stop == null) {
             log.warn("Position {} saknar stopPrice - hoppar över intradagsbevakning",
                     position.getStock().getSymbol());
-            return;
+            return false;
         }
         if (positionAlertRepository.existsByPositionAndTypeAndStatus(
                 position, PositionAlertType.STOP_BREACH, AlertStatus.NEW)) {
-            return;
+            return false;
         }
 
         List<IntradayBar> bars = marketDataProvider.fetchIntradayBars(position.getStock().getSymbol());
         if (bars.isEmpty()) {
-            return;
+            return false;
         }
 
         BigDecimal lastClose = bars.getLast().close();
@@ -76,6 +87,8 @@ public class IntradayMonitoringService {
             alert.setStatus(AlertStatus.NEW);
             alert.setCreatedAt(LocalDateTime.now());
             positionAlertRepository.save(alert);
+            return true;
         }
+        return false;
     }
 }

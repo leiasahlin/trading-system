@@ -44,12 +44,12 @@ public class NotificationService {
         }
 
         SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(config.to());
+        message.setTo(config.recipients());
         message.setSubject(SUBJECT_PREFIX + subject);
         message.setText(body);
         mailSender.send(message);
 
-        log.info("Mejl skickat till {}: {}", config.to(), subject);
+        log.info("Mejl skickat till {}: {}", config.recipientsText(), subject);
         return true;
     }
 
@@ -70,7 +70,7 @@ public class NotificationService {
         try {
             // true = multipart, behövs för att skicka både text och HTML
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setTo(config.to());
+            helper.setTo(config.recipients());
             helper.setSubject(SUBJECT_PREFIX + email.subject());
             helper.setText(email.text(), email.html());
         } catch (MessagingException e) {
@@ -78,7 +78,7 @@ public class NotificationService {
         }
         mailSender.send(message);
 
-        log.info("Mejl skickat till {}: {}", config.to(), email.subject());
+        log.info("Mejl skickat till {}: {}", config.recipientsText(), email.subject());
         return true;
     }
 

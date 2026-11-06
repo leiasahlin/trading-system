@@ -39,6 +39,7 @@ public class OvernightExposureService {
     }
 
     public void checkOvernightExposure() {
+
         PortfolioSnapshot snapshot = portfolioDataProvider.fetchSnapshot();
         BigDecimal accountValue = snapshot.accountValue();
         if (accountValue == null || accountValue.signum() <= 0) {
@@ -46,26 +47,35 @@ public class OvernightExposureService {
             return;
         }
 
+        int checked = 0;
+        int oversized = 0;
+        int failed = 0;
         LocalDate today = LocalDate.now(ZoneId.of("America/New_York"));
         for (PortfolioHolding holding : snapshot.holdings()) {
             try {
-                checkHolding(holding, accountValue, today);
+                if (checkHolding(holding, accountValue, today)) {
+                    oversized++;
+                }
+                checked++;
             } catch (Exception e) {
                 log.warn("Övernattskontroll misslyckades för {}: {}", holding.name(), e.getMessage());
+                failed++;
             }
         }
+        log.info("Övernattskontroll: {} innehav kontrollerade, {} för stora, {} fel",
+                checked, oversized, failed);
     }
 
-    private void checkHolding(PortfolioHolding holding, BigDecimal accountValue, LocalDate today) {
+    private boolean checkHolding(PortfolioHolding holding, BigDecimal accountValue, LocalDate today) {
         if (holding.marketValue() == null || holding.currentPrice() == null || holding.isin() == null) {
             log.warn("Övernattskontroll: {} saknar värde, kurs eller ISIN - hoppas över", holding.name());
-            return;
+            return false;
         }
 
         BigDecimal weight = holding.marketValue().divide(accountValue, 4, RoundingMode.HALF_UP);
         if (weight.compareTo(config.maxOvernightPositionPercent()) <= 0
                 || portfolioAlertRepository.existsByIsinAndAlertDate(holding.isin(), today)) {
-            return;
+            return false;
         }
 
         // Avrundas UPPÅT så positionen hamnar på eller under målvikten
@@ -80,5 +90,7 @@ public class OvernightExposureService {
         alert.setSuggestedSharesToSell(sharesToSell);
         alert.setAlertDate(today);
         portfolioAlertRepository.save(alert);
+
+        return true;
     }
 }
