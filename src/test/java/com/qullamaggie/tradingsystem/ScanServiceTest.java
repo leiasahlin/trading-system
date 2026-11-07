@@ -11,10 +11,7 @@ import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
-import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
-import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
-import com.qullamaggie.tradingsystem.scanner.ParabolicShortConfig;
-import com.qullamaggie.tradingsystem.scanner.ParabolicShortEvaluator;
+import com.qullamaggie.tradingsystem.scanner.*;
 import com.qullamaggie.tradingsystem.scanner.service.ScanService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,13 +41,13 @@ class ScanServiceTest {
     @Mock private ParabolicShortEvaluator parabolicShortEvaluator;
 
     private ScanService scanService;
-    private BreakoutScanConfig breakoutConfig;
+    private BreakoutEvaluator breakoutEvaluator;
     private EpisodicPivotScanConfig episodicPivotConfig;
     private Stock stock;
 
     @BeforeEach
     void setUp() {
-        breakoutConfig = new BreakoutScanConfig(
+        BreakoutScanConfig breakoutConfig = new BreakoutScanConfig(
                 new BigDecimal("30"),   // minPriorMove
                 new BigDecimal("100"),  // maxPriorMove
                 new BigDecimal("3"),    // minAdr
@@ -65,12 +62,14 @@ class ScanServiceTest {
                 new BigDecimal("2"),    // minVolumeVsYesterday
                 new BigDecimal("50"));  // maxPriorMovePercent
 
+        breakoutEvaluator = new BreakoutEvaluator(breakoutConfig);
+
         ParabolicShortConfig parabolicConfig = parabolicConfig(true);
 
         scanService = new ScanService(
                 dailyPriceRepository, indicatorRepository, scanResultRepository,
                 stockRepository, marketDataProvider, calculator, parabolicConfig,
-                parabolicShortEvaluator, breakoutConfig, episodicPivotConfig);   // minVolumeVsYesterday
+                parabolicShortEvaluator, breakoutEvaluator, episodicPivotConfig);   // minVolumeVsYesterday
 
         stock = new Stock();
         stock.setSymbol("AAPL");
@@ -111,7 +110,7 @@ class ScanServiceTest {
         ScanService disabled = new ScanService(
                 dailyPriceRepository, indicatorRepository, scanResultRepository,
                 stockRepository, marketDataProvider, calculator, parabolicConfig(false),
-                parabolicShortEvaluator, breakoutConfig, episodicPivotConfig);
+                parabolicShortEvaluator, breakoutEvaluator, episodicPivotConfig);
 
         disabled.scanAllStocksForParabolicShort();
 

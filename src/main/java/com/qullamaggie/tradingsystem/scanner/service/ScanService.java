@@ -34,14 +34,16 @@ public class ScanService {
     private final ParabolicShortEvaluator parabolicShortEvaluator;
     private static final Logger log = LoggerFactory.getLogger(ScanService.class);
 
-    private final BreakoutScanConfig breakoutConfig;
+    private final BreakoutEvaluator breakoutEvaluator;
     private final EpisodicPivotScanConfig episodicPivotConfig;
 
     public ScanService(DailyPriceRepository dailyPriceRepository,
                        IndicatorRepository indicatorRepository,
                        ScanResultRepository scanResultRepository,
-                       StockRepository stockRepository, MarketDataProvider marketDataProvider, IndicatorCalculator calculator, ParabolicShortConfig parabolicConfig, ParabolicShortEvaluator parabolicShortEvaluator,
-                       BreakoutScanConfig breakoutConfig, EpisodicPivotScanConfig episodicPivotConfig) {
+                       StockRepository stockRepository, MarketDataProvider marketDataProvider,
+                       IndicatorCalculator calculator, ParabolicShortConfig parabolicConfig,
+                       ParabolicShortEvaluator parabolicShortEvaluator, BreakoutEvaluator breakoutEvaluator,
+                       EpisodicPivotScanConfig episodicPivotConfig) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.scanResultRepository = scanResultRepository;
@@ -50,7 +52,7 @@ public class ScanService {
         this.stockRepository = stockRepository;
         this.parabolicConfig = parabolicConfig;
         this.parabolicShortEvaluator = parabolicShortEvaluator;
-        this.breakoutConfig = breakoutConfig;
+        this.breakoutEvaluator = breakoutEvaluator;
         this.episodicPivotConfig = episodicPivotConfig;
     }
 
@@ -66,23 +68,9 @@ public class ScanService {
         Indicator indicator = latestIndicator.get();
         DailyPrice price = latestPrice.get();
 
-        if (indicator.getConsolidationRange() == null || indicator.getPullback() == null
-                || indicator.getVolumeContraction() == null) {
-            return;   // ingen giltig flagga identifierad
-        }
+        Optional<BreakoutEvaluation> evaluation = breakoutEvaluator.evaluate(price, indicator);
 
-        boolean hasPriorMove = indicator.getPriorMove().compareTo(breakoutConfig.minPriorMove()) >= 0 &&
-                indicator.getPriorMove().compareTo(breakoutConfig.maxPriorMove()) <= 0;
-        boolean hasEnoughVolume = indicator.getVolumeAvg20() >= breakoutConfig.minAvgVolume();
-        boolean hasEnoughAdr = indicator.getAdr20().compareTo(breakoutConfig.minAdr()) >= 0;
-        boolean closedAboveShortMa = price.getClose().compareTo(indicator.getMa10()) > 0 ||   // close > ma10
-                price.getClose().compareTo(indicator.getMa20()) > 0; // or close > ma20
-        boolean hasTightConsolidation = indicator.getConsolidationRange().compareTo(breakoutConfig.maxConsolidationRange()) <= 0;
-        boolean hasShallowPullback = indicator.getPullback().compareTo(breakoutConfig.maxPullback()) <= 0;
-        boolean hasVolumeContraction = indicator.getVolumeContraction().compareTo(breakoutConfig.maxVolumeContraction()) <= 0;
-
-        boolean isBreakout = hasPriorMove && hasEnoughVolume && hasEnoughAdr
-                && closedAboveShortMa && hasTightConsolidation && hasShallowPullback && hasVolumeContraction;
+        boolean isBreakout = evaluation.isPresent() && evaluation.get().allPassed();
 
         if (isBreakout) {
             ScanResult result = new ScanResult();
