@@ -53,4 +53,7 @@ public class Stock {
     private String avanzaOrderbookId;
 
     private String isin;
+
+    @Column(name =  "refresh_failures")
+    private int refreshFailures;
 }

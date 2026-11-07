@@ -10,6 +10,7 @@ import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -25,6 +26,8 @@ public class MarketDataService {
     private final DailyPriceRepository dailyPriceRepository;
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private final SplitAdjuster splitAdjuster;
+    private static final int MAX_REFRESH_FAILURES = 3;
+
 
     public MarketDataService(MarketDataProvider marketDataProvider,
                              StockRepository stockRepository,
@@ -41,12 +44,22 @@ public class MarketDataService {
      */
     public RefreshSummary refreshAllStocks() {
         int sum = 0;
-        List<Stock> stocks = stockRepository.findAll();
+        List<Stock> stocks = stockRepository.findByActiveTrue();
 
         int processed = 0;
         for (Stock stock : stocks) {
             try {
                 sum += refreshPrices(stock);
+                if (stock.getRefreshFailures() > 0) {
+                    stock.setRefreshFailures(0);
+                    stockRepository.save(stock);
+                }
+            } catch (HttpClientErrorException e) {
+                if (isUnknownSymbol(e)) {
+                    registerRefreshFailure(stock);
+                } else {
+                    log.warn("Kunde inte uppdatera priser för {}: {}", stock.getSymbol(), e.getMessage());
+                }
             } catch (Exception e) {
                 log.warn("Kunde inte uppdatera priser för {}: {}", stock.getSymbol(), e.getMessage());
             }
@@ -55,7 +68,35 @@ public class MarketDataService {
             }
         }
         return new RefreshSummary(stocks.size(), sum);
+    }
 
+    /**
+     * Twelve Data answers 400, 404 or 422 when it doesn't recognise the symbol.
+     * Other errors (429 rate limit, 5xx) mean the call failed, not that the stock is gone.
+     */
+    private boolean isUnknownSymbol(HttpClientErrorException e) {
+        int status = e.getStatusCode().value();
+        return status == 400 || status == 404 || status == 422;
+    }
+
+    /**
+     * Counts consecutive "unknown symbol" answers. After MAX_REFRESH_FAILURES
+     * in a row the stock is deactivated so it is no longer fetched or traded.
+     */
+    private void registerRefreshFailure(Stock stock) {
+        int failures = stock.getRefreshFailures() + 1;
+        stock.setRefreshFailures(failures);
+
+        if (failures >= MAX_REFRESH_FAILURES) {
+            stock.setActive(false);
+            stock.setEligible(false);
+            log.warn("{} markerad som inaktiv efter {} försök där symbolen inte hittades",
+                    stock.getSymbol(), failures);
+        } else {
+            log.warn("Symbolen {} hittades inte ({} av {})",
+                    stock.getSymbol(), failures, MAX_REFRESH_FAILURES);
+        }
+        stockRepository.save(stock);
     }
 
     /**

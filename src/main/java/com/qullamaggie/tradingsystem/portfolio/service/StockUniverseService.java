@@ -59,6 +59,9 @@ public class StockUniverseService {
         if (stock.getType() == StockType.INDEX) {
             return;
         }
+        if (!stock.isActive()) {
+            return;
+        }
 
         Optional<DailyPrice> price = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
         Optional<Indicator> indicator = indicatorRepository.findTop1ByStockOrderByDateDesc(stock);

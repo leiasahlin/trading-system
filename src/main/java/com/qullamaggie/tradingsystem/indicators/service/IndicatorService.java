@@ -137,7 +137,7 @@ public class IndicatorService {
     }
 
     public void calculateForAllStocks() {
-        for (Stock stock : stockRepository.findAll()) {
+        for (Stock stock : stockRepository.findByActiveTrue()) {
             try {
                 calculateAndSaveIndicators(stock);
             } catch (Exception e) {

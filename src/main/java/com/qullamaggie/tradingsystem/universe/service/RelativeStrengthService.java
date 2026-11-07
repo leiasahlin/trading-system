@@ -49,6 +49,7 @@ public class RelativeStrengthService {
 
         List<Stock> stocks = stockRepository.findAll().stream()
                 .filter(s -> s.getType() == StockType.TRADEABLE)
+                .filter(Stock::isActive)
                 .toList();
 
         Map<String, List<DailyPrice>> history = new HashMap<>();
