@@ -11,5 +11,6 @@ public record EpisodicPivotScanConfig(
         BigDecimal minRelativeVolume,
         BigDecimal minVolumeVsYesterday,
         BigDecimal maxPriorMovePercent,
-        @DefaultValue("126") int priorMoveDays
+        @DefaultValue("126") int priorMoveDays,
+        @DefaultValue("0.5") BigDecimal riskOffMaxStopAdr
 ) {}

@@ -61,7 +61,8 @@ class ScanServiceTest {
                 new BigDecimal("1"),    // minRelativeVolume
                 new BigDecimal("2"),    // minVolumeVsYesterday
                 new BigDecimal("50"),   // maxPriorMovePercent
-                126);                       //priorMoveDays
+                126,                           //priorMoveDays
+                new BigDecimal("0.5"));     //riskOffMaxStopAdr
 
         breakoutEvaluator = new BreakoutEvaluator(breakoutConfig);
 

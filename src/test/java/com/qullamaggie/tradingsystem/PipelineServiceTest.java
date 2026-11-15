@@ -94,21 +94,24 @@ public class PipelineServiceTest {
     }
 
     @Test
-    public void episodicPivotScanOnly_skipsScan_whenStoredRegimeIsRiskOff() {
+    public void episodicPivotScanOnly_stillRuns_whenStoredRegimeIsRiskOff() {
+        // EP drivs av nyheter, inte marknaden - körs med halv risk och tajtare stopp
         when(marketRegimeService.getLatest()).thenReturn(Optional.of(regime(RegimeStatus.RISK_OFF)));
 
         pipelineService.runEpisodicPivotScanOnly();
 
-        verifyNoInteractions(scanService, alertService);
+        verify(scanService).scanAllStocksForEpisodicPivot();
+        verify(alertService).createAlertsForAllScans();
     }
 
     @Test
-    public void episodicPivotScanOnly_skipsScan_whenNoRegimeStoredYet() {
-        // Ingen bedömning alls - anta inte att marknaden är gynnsam
+    public void episodicPivotScanOnly_stillRuns_whenNoRegimeStoredYet() {
+        // Ingen bedömning alls behandlas som RISK_OFF - försiktigt läge, inte avstängt
         when(marketRegimeService.getLatest()).thenReturn(Optional.empty());
 
         pipelineService.runEpisodicPivotScanOnly();
 
-        verifyNoInteractions(scanService, alertService);
+        verify(scanService).scanAllStocksForEpisodicPivot();
+        verify(alertService).createAlertsForAllScans();
     }
 }

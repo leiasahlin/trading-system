@@ -52,7 +52,7 @@ public class IndicatorServiceTest {
                 stockRepository,
                 new PhaseDetector(new PhaseDetectionConfig(10, 40, 60)),
                 new EpisodicPivotScanConfig(new BigDecimal("10"), new BigDecimal("1"),
-                        new BigDecimal("2"), new BigDecimal("50"), 126));
+                        new BigDecimal("2"), new BigDecimal("50"), 126, new BigDecimal("0.5")));
 
         stock = new Stock();
         stock.setSymbol("AAPL");

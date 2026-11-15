@@ -89,9 +89,10 @@ public class PipelineService {
     }
 
     /**
-     * Episodic pivot scan without a redundant daily data refresh - relies on
-     * yesterday's already-fetched daily data plus this run's own live
-     * intraday snapshot per stock.
+     * Lighter run during market hours: only the EP scan and its alerts, no data
+     * refresh. Runs in both regimes. In RISK_OFF the alerts get half the risk and
+     * a tighter stop limit (handled in AlertService), since an EP is driven by
+     * news rather than the market. Breakouts stay off in RISK_OFF.
      */
     public void runEpisodicPivotScanOnly() {
         boolean riskOn = marketRegimeService.getLatest()
@@ -99,7 +100,7 @@ public class PipelineService {
                 .orElse(false);
 
         if (!riskOn) {
-            return;
+            log.info("RISK_OFF - EP-scan körs med halv risk och tajtare stopp");
         }
 
         scanService.scanAllStocksForEpisodicPivot();

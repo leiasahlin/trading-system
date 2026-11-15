@@ -11,6 +11,7 @@ import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
 import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
+import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import com.qullamaggie.tradingsystem.scanner.ParabolicTriggerType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,9 @@ class AlertServiceTest {
                 positionSizeCalculator, marketDataProvider, dailyPriceRepository,
                 marketRegimeService, accountConfig,
                 15,                          // parabolicLookbackDays
-                new BigDecimal("0.5"));      // parabolicStopMarginPercent
+                new BigDecimal("0.5"),       // parabolicStopMarginPercent
+                new EpisodicPivotScanConfig(new BigDecimal("10"), new BigDecimal("1"),
+                        new BigDecimal("2"), new BigDecimal("50"), 126, new BigDecimal("0.5")));    // parabolicStopMarginPercent
 
         stock = new Stock();
         stock.setSymbol("AAPL");
@@ -91,6 +94,38 @@ class AlertServiceTest {
         alertService.createAlertFromScan(scanResult(SetupType.EPISODIC_PIVOT));
 
         verify(alertRepository).save(any(Alert.class));
+    }
+
+    /** EP with entry 340 and low of day 336: stop distance ≈ 1,2 %. ADR 2 % → 0,5 × ADR = 1 %. */
+    private void givenEpWithStopDistanceBetweenHalfAndFullAdr() {
+        when(alertRepository.existsByStockAndStatus(stock, AlertStatus.NEW)).thenReturn(false);
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(indicatorWith("310", "300", "2")));
+        when(marketDataProvider.fetchIntradaySnapshot("AAPL"))
+                .thenReturn(new IntradaySnapshot("AAPL", LocalDate.now(),
+                        new BigDecimal("336"), new BigDecimal("340"),
+                        new BigDecimal("336"), 5_000_000L));
+    }
+
+    @Test
+    void episodicPivot_riskOn_acceptsStopWithinFullAdr() {
+        givenEpWithStopDistanceBetweenHalfAndFullAdr();
+        when(marketRegimeService.getLatest()).thenReturn(Optional.of(regime(RegimeStatus.RISK_ON)));
+        when(positionSizeCalculator.calculateShares(any(), any(), any(), any(), any())).thenReturn(50);
+
+        alertService.createAlertFromScan(scanResult(SetupType.EPISODIC_PIVOT));
+
+        verify(alertRepository).save(any(Alert.class));
+    }
+
+    @Test
+    void episodicPivot_riskOff_rejectsStopWiderThanHalfAdr() {
+        givenEpWithStopDistanceBetweenHalfAndFullAdr();
+        when(marketRegimeService.getLatest()).thenReturn(Optional.of(regime(RegimeStatus.RISK_OFF)));
+
+        alertService.createAlertFromScan(scanResult(SetupType.EPISODIC_PIVOT));
+
+        verify(alertRepository, never()).save(any());
     }
 
     private MarketRegime regime(RegimeStatus status) {

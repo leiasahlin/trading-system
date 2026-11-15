@@ -7,6 +7,7 @@ import com.qullamaggie.tradingsystem.data.entity.*;
 import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.AlertRepository;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
+import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import com.qullamaggie.tradingsystem.scanner.ParabolicTriggerType;
 import com.qullamaggie.tradingsystem.data.repository.IndicatorRepository;
 import com.qullamaggie.tradingsystem.data.repository.ScanResultRepository;
@@ -35,11 +36,11 @@ public class AlertService {
     private final PositionSizeCalculator positionSizeCalculator;
     private final MarketDataProvider marketDataProvider;
     private final DailyPriceRepository dailyPriceRepository;
-
     private final MarketRegimeService marketRegimeService;
     private final AccountConfig accountConfig;
     private final int parabolicLookbackDays;
     private final BigDecimal parabolicStopMarginPercent;
+    private final EpisodicPivotScanConfig episodicPivotConfig;
     private static final Logger log = LoggerFactory.getLogger(AlertService.class);
 
     public AlertService(ScanResultRepository scanResultRepository,
@@ -51,7 +52,7 @@ public class AlertService {
                         MarketRegimeService marketRegimeService,
                         AccountConfig accountConfig,
                         @Value("${trading.scanner.parabolic.lookback-days}") int parabolicLookbackDays,
-                        @Value("${trading.scanner.parabolic.stop-margin-percent}") BigDecimal parabolicStopMarginPercent) {
+                        @Value("${trading.scanner.parabolic.stop-margin-percent}") BigDecimal parabolicStopMarginPercent, EpisodicPivotScanConfig episodicPivotConfig) {
         this.scanResultRepository = scanResultRepository;
         this.indicatorRepository = indicatorRepository;
         this.alertRepository = alertRepository;
@@ -62,6 +63,7 @@ public class AlertService {
         this.accountConfig = accountConfig;
         this.parabolicLookbackDays = parabolicLookbackDays;
         this.parabolicStopMarginPercent = parabolicStopMarginPercent;
+        this.episodicPivotConfig = episodicPivotConfig;
     }
     /**
      * Creates an alert from a single scan result.
@@ -111,7 +113,13 @@ public class AlertService {
 
         BigDecimal riskDistancePercent = entry.subtract(stop).abs().divide(entry, 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
-        if (riskDistancePercent.compareTo(indicator.getAdr20()) > 0) {
+
+        // Stop = dagens lägsta, högst 1 x ADR bort. I RISK_OFF krävs en tajtare
+        // stop (standard 0,5 x ADR), annars ingen signal
+        BigDecimal maxStopDistance = isRiskOn()
+                ? indicator.getAdr20()
+                : indicator.getAdr20().multiply(episodicPivotConfig.riskOffMaxStopAdr());
+        if (riskDistancePercent.compareTo(maxStopDistance) > 0) {
             return;
         }
 
@@ -196,17 +204,20 @@ public class AlertService {
         log.info("Alerts: {} scanresultat behandlade", scans.size());
     }
 
+    /** True only when the stored regime is RISK_ON; no regime yet counts as RISK_OFF. */
+    private boolean isRiskOn() {
+        return marketRegimeService.getLatest()
+                .map(regime -> regime.getStatus() == RegimeStatus.RISK_ON)
+                .orElse(false);
+    }
+
     /**
      * Risk per trade depends on the market regime: the source specifies a
      * defensive default with an offensive setting when conditions are
      * constructive. Falls back to defensive when no regime has been assessed.
      */
     private BigDecimal currentRiskPercent() {
-        boolean riskOn = marketRegimeService.getLatest()
-                .map(regime -> regime.getStatus() == RegimeStatus.RISK_ON)
-                .orElse(false);
-
-        return riskOn ? accountConfig.riskPercentOffensive() : accountConfig.riskPercentDefensive();
+        return isRiskOn() ? accountConfig.riskPercentOffensive() : accountConfig.riskPercentDefensive();
     }
 
     /**
