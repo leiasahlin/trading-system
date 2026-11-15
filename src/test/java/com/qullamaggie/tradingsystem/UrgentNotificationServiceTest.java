@@ -7,6 +7,7 @@ import com.qullamaggie.tradingsystem.market.MarketRegimeConfig;
 import com.qullamaggie.tradingsystem.market.RegimeMode;
 import com.qullamaggie.tradingsystem.notifications.*;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleConfig;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
 import com.qullamaggie.tradingsystem.portfolio.service.PositionSummaryProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +47,9 @@ class UrgentNotificationServiceTest {
                 new BigDecimal("0.30"), new BigDecimal("0.20"));
         NotificationDataLoader loader = new NotificationDataLoader(indicatorRepository, stockRepository,
                 positionSummaryProvider, new MarketRegimeConfig(List.of("SPY"), RegimeMode.ALL, 10, 20),
-                account, new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10));
+                account, new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10),
+                new BreakoutScanConfig(new BigDecimal("30"), new BigDecimal("100"), new BigDecimal("3"),
+                        1_000_000L, new BigDecimal("15"), new BigDecimal("25"), new BigDecimal("0.8")));
         EmailRenderer renderer = new EmailRenderer();
 
         service = new UrgentNotificationService(alertRepository, positionAlertRepository, portfolioAlertRepository,

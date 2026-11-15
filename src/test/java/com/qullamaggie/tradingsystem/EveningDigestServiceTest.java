@@ -9,7 +9,11 @@ import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
 import com.qullamaggie.tradingsystem.notifications.*;
 import com.qullamaggie.tradingsystem.portfolio.PositionSummary;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleConfig;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
 import com.qullamaggie.tradingsystem.portfolio.service.PositionSummaryProvider;
+import com.qullamaggie.tradingsystem.scanner.BreakoutEvaluation;
+import com.qullamaggie.tradingsystem.scanner.WatchlistCandidate;
+import com.qullamaggie.tradingsystem.scanner.service.WatchlistService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +48,7 @@ class EveningDigestServiceTest {
     @Mock private PositionSummaryProvider positionSummaryProvider;
     @Mock private MarketRegimeService marketRegimeService;
     @Mock private NotificationService notificationService;
+    @Mock private WatchlistService watchlistService;   // testas för sig i WatchlistServiceTest
 
     private EveningDigestService service;
     private Stock mstr;
@@ -56,10 +62,13 @@ class EveningDigestServiceTest {
 
         NotificationDataLoader loader = new NotificationDataLoader(indicatorRepository, stockRepository,
                 positionSummaryProvider, new MarketRegimeConfig(List.of("SPY"), RegimeMode.ALL, 10, 20),
-                accountConfig, new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10));
+                accountConfig, new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10),
+                new BreakoutScanConfig(new BigDecimal("30"), new BigDecimal("100"), new BigDecimal("3"),
+                        1_000_000L, new BigDecimal("15"), new BigDecimal("25"), new BigDecimal("0.8")));
 
         service = new EveningDigestService(alertRepository, positionAlertRepository, portfolioAlertRepository,
-                marketRegimeService, loader, new EveningDigestFormatter(new EmailRenderer()), notificationService);
+                marketRegimeService, loader, new EveningDigestFormatter(new EmailRenderer()), notificationService,
+                watchlistService);
 
         mstr = new Stock();
         mstr.setSymbol("MSTR");
@@ -266,5 +275,46 @@ class EveningDigestServiceTest {
         service.sendEveningDigest();
 
         assertTrue(sentEmail().subject().endsWith("ingen åtgärd"));
+    }
+
+    // --- Bevakningslista ---
+
+    @Test
+    void buySignalSymbols_areExcludedFromWatchlist() {
+        when(alertRepository.findByNotifiedAtIsNull()).thenReturn(List.of(buyAlert(AlertStatus.NEW)));
+        when(notificationService.send(any(EmailContent.class))).thenReturn(true);
+
+        service.sendEveningDigest();
+
+        verify(watchlistService).findTopCandidates(Set.of("MSTR"));
+    }
+
+    @Test
+    void watchlistCandidate_isShownInEmail() {
+        Stock nvda = new Stock();
+        nvda.setSymbol("NVDA");
+        Indicator indicator = new Indicator();
+        indicator.setPriorMove(new BigDecimal("45"));
+        indicator.setAdr20(new BigDecimal("5.2"));
+        indicator.setConsolidationHigh(new BigDecimal("142.50"));
+        WatchlistCandidate candidate = new WatchlistCandidate(nvda, null, indicator,
+                new BreakoutEvaluation(Set.of()), new BigDecimal("3"));
+        when(watchlistService.findTopCandidates(any())).thenReturn(List.of(candidate));
+        when(notificationService.send(any(EmailContent.class))).thenReturn(true);
+
+        service.sendEveningDigest();
+
+        assertTrue(sentEmail().text().contains("NVDA – 7 av 7 kriterier uppfyllda"));
+    }
+
+    @Test
+    void watchlistFails_emailIsStillSent() {
+        // Kvällsmejlet är livstecknet - ett fel i bevakningslistan får inte stoppa det
+        when(watchlistService.findTopCandidates(any())).thenThrow(new RuntimeException("databasfel"));
+        when(notificationService.send(any(EmailContent.class))).thenReturn(true);
+
+        assertTrue(service.sendEveningDigest());
+
+        assertFalse(sentEmail().text().contains("BEVAKNINGSLISTA"));
     }
 }

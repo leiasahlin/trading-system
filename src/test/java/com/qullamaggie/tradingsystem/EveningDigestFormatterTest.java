@@ -12,10 +12,17 @@ import com.qullamaggie.tradingsystem.notifications.EveningDigest.*;
 import com.qullamaggie.tradingsystem.notifications.EveningDigestFormatter;
 import com.qullamaggie.tradingsystem.portfolio.PositionSummary;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleConfig;
+import com.qullamaggie.tradingsystem.data.entity.Indicator;
+import com.qullamaggie.tradingsystem.data.entity.Stock;
+import com.qullamaggie.tradingsystem.scanner.BreakoutCriterion;
+import com.qullamaggie.tradingsystem.scanner.BreakoutEvaluation;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
+import com.qullamaggie.tradingsystem.scanner.WatchlistCandidate;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -33,6 +40,9 @@ class EveningDigestFormatterTest {
             new BigDecimal("0.005"), new BigDecimal("0.01"),
             new BigDecimal("0.30"), new BigDecimal("0.20"));
     private static final SellRuleConfig RULES = new SellRuleConfig(BigDecimal.valueOf(2), 3, 5, 10);
+    private static final BreakoutScanConfig BREAKOUT = new BreakoutScanConfig(
+            new BigDecimal("30"), new BigDecimal("100"), new BigDecimal("3"), 1_000_000L,
+            new BigDecimal("15"), new BigDecimal("25"), new BigDecimal("0.8"));
     private static final IndexReading SPY = new IndexReading("SPY",
             10, new BigDecimal("768.4780"), 20, new BigDecimal("765.6395"));
 
@@ -43,7 +53,7 @@ class EveningDigestFormatterTest {
     private EveningDigest digest(List<BuySignal> buys, List<PositionWarning> warnings,
                                  List<OvernightWarning> overnight) {
         return new EveningDigest(DATE, RegimeStatus.RISK_ON, RegimeMode.ALL, List.of(SPY), ACCOUNT, RULES,
-                List.of(), buys, warnings, overnight);
+                List.of(), buys, warnings, overnight, List.of(), BREAKOUT);
     }
 
     private EmailContent format(BuySignal... buys) {
@@ -306,7 +316,7 @@ class EveningDigestFormatterTest {
     @Test
     void riskOff_saysNoNewBreakouts() {
         EveningDigest riskOff = new EveningDigest(DATE, RegimeStatus.RISK_OFF, RegimeMode.ALL, List.of(SPY),
-                ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of());
+                ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of(), List.of(), BREAKOUT);
 
         assertTrue(formatter.format(riskOff).text()
                 .contains("Marknaden går nedåt. Systemet letar inte efter nya breakouts, men bevakar dina positioner."));
@@ -315,7 +325,8 @@ class EveningDigestFormatterTest {
     @Test
     void noRegime_saysNotAssessed_andMissingDataShown() {
         EveningDigest none = new EveningDigest(DATE, null, RegimeMode.ALL,
-                List.of(new IndexReading("SPY", 10, null, 20, null)), ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of());
+                List.of(new IndexReading("SPY", 10, null, 20, null)), ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of(),
+                List.of(), BREAKOUT);
 
         String text = formatter.format(none).text();
 
@@ -327,7 +338,7 @@ class EveningDigestFormatterTest {
     void severalIndexes_explainsRegimeMode() {
         IndexReading qqq = new IndexReading("QQQ", 10, new BigDecimal("500"), 20, new BigDecimal("510"));
         EveningDigest two = new EveningDigest(DATE, RegimeStatus.RISK_OFF, RegimeMode.ALL, List.of(SPY, qqq),
-                ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of());
+                ACCOUNT, RULES, List.of(), List.of(), List.of(), List.of(), List.of(), BREAKOUT);
 
         String text = formatter.format(two).text();
 
@@ -367,7 +378,7 @@ class EveningDigestFormatterTest {
         EveningDigest digest = new EveningDigest(DATE, RegimeStatus.RISK_ON, RegimeMode.ALL, List.of(SPY),
                 ACCOUNT, RULES,
                 List.of(new UnhandledStopBreach(nvdaBreach(new BigDecimal("114.20")), LocalDate.of(2026, 10, 14))),
-                List.of(mstr()), List.of(), List.of());
+                List.of(mstr()), List.of(), List.of(), List.of(), BREAKOUT);
 
         EmailContent email = formatter.format(digest);
 
@@ -378,5 +389,106 @@ class EveningDigestFormatterTest {
                 + "Sälj: alla dina 400 st\nStop loss: 115,50 $\nKurs vid larmet: 114,20 $\n"));
         assertTrue(text.contains("registrera försäljningen med kommandot nedan så försvinner påminnelsen."));
         assertTrue(text.contains("\"shares\": 400, \"price\": 115.50"));
+    }
+
+    // --- Bevakningslista ---
+
+    /**
+     * NVDA closing 3 % under its breakout level 142,50, failing only the volume
+     * contraction (0,90 against a limit of 0,80).
+     */
+    private WatchlistCandidate nvdaCandidate(String distance, BreakoutCriterion... failed) {
+        Stock stock = new Stock();
+        stock.setSymbol("NVDA");
+
+        Indicator indicator = new Indicator();
+        indicator.setPriorMove(new BigDecimal("45"));
+        indicator.setVolumeAvg20(800_000L);
+        indicator.setAdr20(new BigDecimal("5.2"));
+        indicator.setConsolidationRange(new BigDecimal("18.4"));
+        indicator.setPullback(new BigDecimal("31"));
+        indicator.setVolumeContraction(new BigDecimal("0.9"));
+        indicator.setConsolidationHigh(new BigDecimal("142.50"));
+
+        EnumSet<BreakoutCriterion> failedSet = EnumSet.noneOf(BreakoutCriterion.class);
+        failedSet.addAll(List.of(failed));
+        return new WatchlistCandidate(stock, null, indicator, new BreakoutEvaluation(failedSet),
+                new BigDecimal(distance));
+    }
+
+    private EveningDigest digestWithWatchlist(RegimeStatus regime, WatchlistCandidate... candidates) {
+        return new EveningDigest(DATE, regime, RegimeMode.ALL, List.of(SPY), ACCOUNT, RULES,
+                List.of(), List.of(), List.of(), List.of(), List.of(candidates), BREAKOUT);
+    }
+
+    @Test
+    void noCandidates_noWatchlistSection() {
+        String text = formatter.format(digest(List.of(), List.of(), List.of())).text();
+
+        assertFalse(text.contains("BEVAKNINGSLISTA"));
+    }
+
+    @Test
+    void candidate_titleDistancePassedAndFailedLines() {
+        String text = formatter.format(digestWithWatchlist(RegimeStatus.RISK_ON,
+                nvdaCandidate("3.0000", BreakoutCriterion.VOLUME_CONTRACTION))).text();
+
+        assertTrue(text.contains("NVDA – 6 av 7 kriterier uppfyllda\n"
+                + "• 3,0 % under breakout-nivån 142,50 $\n"
+                + "• ✓ Tidigare rörelse 45 % · ✓ Volym · ✓ ADR 5,2 % · ✓ Stängde över MA10 eller MA20"
+                + " · ✓ Tight konsolidering · ✓ Grund rekyl\n"
+                + "• ✗ Volymen har inte krympt (0,90, gräns 0,80)\n"), text);
+    }
+
+    @Test
+    void failedCriteria_showValueAndLimit_eachOnItsOwnLine() {
+        String text = formatter.format(digestWithWatchlist(RegimeStatus.RISK_ON,
+                nvdaCandidate("3", BreakoutCriterion.AVG_VOLUME, BreakoutCriterion.CONSOLIDATION_RANGE,
+                        BreakoutCriterion.PULLBACK))).text();
+
+        assertTrue(text.contains("NVDA – 4 av 7 kriterier uppfyllda\n"));
+        assertTrue(text.contains("• ✗ För låg volym (800 000 aktier/dag, minst 1 000 000)\n"));
+        assertTrue(text.contains("• ✗ För bred konsolidering (18,4 %, max 15 %)\n"));
+        assertTrue(text.contains("• ✗ För djup rekyl (31,0 %, max 25 %)\n"));
+    }
+
+    @Test
+    void closedAboveBreakoutLevel_saysOver() {
+        String text = formatter.format(digestWithWatchlist(RegimeStatus.RISK_ON, nvdaCandidate("-2"))).text();
+
+        assertTrue(text.contains("• 2,0 % över breakout-nivån 142,50 $\n"));
+        assertTrue(text.contains("NVDA – 7 av 7 kriterier uppfyllda\n"));
+    }
+
+    @Test
+    void riskOff_explainsThatBreakoutsAreNotBought() {
+        String text = formatter.format(digestWithWatchlist(RegimeStatus.RISK_OFF, nvdaCandidate("3"))).text();
+
+        assertTrue(text.contains("Marknaden går nedåt. Enligt Kullamägi köps inga breakouts i ett sådant läge"));
+    }
+
+    @Test
+    void riskOn_noBearMarketNote() {
+        String text = formatter.format(digestWithWatchlist(RegimeStatus.RISK_ON, nvdaCandidate("3"))).text();
+
+        assertTrue(text.contains("Inga köpsignaler. Aktier som klarar de flesta villkoren för en breakout"));
+        assertFalse(text.contains("Enligt Kullamägi köps inga breakouts"));
+    }
+
+    @Test
+    void watchlistOnly_isNotAnAction_subjectStaysWhite() {
+        EmailContent email = formatter.format(digestWithWatchlist(RegimeStatus.RISK_ON, nvdaCandidate("3")));
+
+        assertEquals("⚪ Kväll 16/10: ingen åtgärd", email.subject());
+    }
+
+    @Test
+    void watchlist_comesAfterMarketAndBeforeCalculations() {
+        String text = formatter.format(digestWithWatchlist(RegimeStatus.RISK_ON, nvdaCandidate("3"))).text();
+
+        int market = text.indexOf("━━ MARKNADEN ━━");
+        int watchlist = text.indexOf("━━ BEVAKNINGSLISTA: POTENTIELLA BREAKOUTS ━━");
+        int calculations = text.indexOf("━━ SÅ HAR SYSTEMET RÄKNAT ━━");
+        assertTrue(market >= 0 && market < watchlist && watchlist < calculations, text);
     }
 }
