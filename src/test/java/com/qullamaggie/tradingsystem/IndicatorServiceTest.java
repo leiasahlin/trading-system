@@ -10,6 +10,7 @@ import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import com.qullamaggie.tradingsystem.indicators.PhaseDetectionConfig;
 import com.qullamaggie.tradingsystem.indicators.PhaseDetector;
 import com.qullamaggie.tradingsystem.indicators.service.IndicatorService;
+import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +50,9 @@ public class IndicatorServiceTest {
                 indicatorRepository,
                 calculator,
                 stockRepository,
-                new PhaseDetector(new PhaseDetectionConfig(10, 40, 60)));
+                new PhaseDetector(new PhaseDetectionConfig(10, 40, 60)),
+                new EpisodicPivotScanConfig(new BigDecimal("10"), new BigDecimal("1"),
+                        new BigDecimal("2"), new BigDecimal("50"), 126));
 
         stock = new Stock();
         stock.setSymbol("AAPL");

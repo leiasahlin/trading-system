@@ -104,8 +104,8 @@ public class ScanService {
 
         Indicator indicator = latestIndicator.get();
         // Har aktien redan gjort en stor flermånadersrörelse är gapet ingen överraskning
-        if (indicator.getPriorMove() != null
-                && indicator.getPriorMove().compareTo(episodicPivotConfig.maxPriorMovePercent()) > 0) {
+        if (indicator.getPriorMoveLong() != null
+                && indicator.getPriorMoveLong().compareTo(episodicPivotConfig.maxPriorMovePercent()) > 0) {
             return;
         }
         DailyPrice yesterday = latestPrice.get();

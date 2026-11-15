@@ -1,6 +1,7 @@
 package com.qullamaggie.tradingsystem.scanner;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.math.BigDecimal;
 
@@ -9,5 +10,6 @@ public record EpisodicPivotScanConfig(
         BigDecimal minGap,
         BigDecimal minRelativeVolume,
         BigDecimal minVolumeVsYesterday,
-        BigDecimal maxPriorMovePercent
+        BigDecimal maxPriorMovePercent,
+        @DefaultValue("126") int priorMoveDays
 ) {}

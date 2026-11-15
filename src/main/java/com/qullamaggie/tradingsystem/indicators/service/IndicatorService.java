@@ -10,6 +10,7 @@ import com.qullamaggie.tradingsystem.indicators.ConsolidationResult;
 import com.qullamaggie.tradingsystem.indicators.FlagPhases;
 import com.qullamaggie.tradingsystem.indicators.IndicatorCalculator;
 import com.qullamaggie.tradingsystem.indicators.PhaseDetector;
+import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,24 +24,25 @@ import java.util.List;
 
 @Service
 public class IndicatorService {
+    private static final Logger log = LoggerFactory.getLogger(IndicatorService.class);
 
     private final DailyPriceRepository dailyPriceRepository;
     private final IndicatorRepository indicatorRepository;
     private final IndicatorCalculator calculator;
     private final StockRepository stockRepository;
     private final PhaseDetector phaseDetector;
-    private static final Logger log = LoggerFactory.getLogger(IndicatorService.class);
-
+    private final EpisodicPivotScanConfig episodicPivotScanConfig;
 
     public IndicatorService(DailyPriceRepository dailyPriceRepository,
                             IndicatorRepository indicatorRepository,
                             IndicatorCalculator indicatorCalculator,
-                            StockRepository stockRepository, PhaseDetector phaseDetector) {
+                            StockRepository stockRepository, PhaseDetector phaseDetector, EpisodicPivotScanConfig episodicPivotScanConfig) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.calculator = indicatorCalculator;
         this.stockRepository = stockRepository;
         this.phaseDetector = phaseDetector;
+        this.episodicPivotScanConfig = episodicPivotScanConfig;
     }
 
     public void calculateAndSaveIndicators(Stock stock) {
@@ -84,6 +86,11 @@ public class IndicatorService {
         // Prior move over 60 trading days (3 months)
         BigDecimal priorMove = calculator.findPriorMove(lastN(prices, 60));
 
+        // Prior move over a longer window for the EP filter (about 6 months).
+        // Shorter histories use what exists
+        BigDecimal priorMoveLong = calculator.findPriorMove(lastN(prices,
+                episodicPivotScanConfig.priorMoveDays()));
+
         // Gap and relative volume (EP indicators) — based on the most recent day
         DailyPrice today = prices.getLast();
         DailyPrice yesterday = prices.get(prices.size() - 2);
@@ -126,6 +133,7 @@ public class IndicatorService {
         indicator.setVolumeAvg20(volumeAvg20);
         indicator.setVolumeAvg50(volumeAvg50);
         indicator.setPriorMove(priorMove);
+        indicator.setPriorMoveLong(priorMoveLong);
         indicator.setConsolidationRange(consolidation == null ? null : consolidation.range());
         indicator.setConsolidationHigh(consolidation == null ? null : consolidation.high());
         indicator.setConsolidationLow(consolidation == null ? null : consolidation.low());

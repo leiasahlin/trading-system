@@ -60,7 +60,8 @@ class ScanServiceTest {
                 new BigDecimal("10"),   // minGap
                 new BigDecimal("1"),    // minRelativeVolume
                 new BigDecimal("2"),    // minVolumeVsYesterday
-                new BigDecimal("50"));  // maxPriorMovePercent
+                new BigDecimal("50"),   // maxPriorMovePercent
+                126);                       //priorMoveDays
 
         breakoutEvaluator = new BreakoutEvaluator(breakoutConfig);
 
@@ -210,6 +211,45 @@ class ScanServiceTest {
         scanService.scanStockForEpisodicPivot(stock);
 
         verify(scanResultRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldNotSaveEpisodicPivot_whenLongPriorMoveTooLarge() {
+        // Har redan stigit 80 % på sex månader - gapet är ingen överraskning (gräns 50)
+        Indicator indicator = passingBreakoutIndicator();
+        indicator.setPriorMoveLong(new BigDecimal("80"));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(priceWithClose("300")));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
+        when(marketDataProvider.fetchIntradaySnapshot("AAPL"))
+                .thenReturn(new IntradaySnapshot("AAPL", LocalDate.now(),
+                        new BigDecimal("336"), new BigDecimal("340"),
+                        new BigDecimal("334"), 5_000_000L));
+
+        scanService.scanStockForEpisodicPivot(stock);
+
+        verify(scanResultRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldSaveEpisodicPivot_whenOnlyShortPriorMoveIsLarge() {
+        // 60-dagarsrörelsen är över gränsen, men EP-filtret tittar bara på den långa
+        Indicator indicator = passingBreakoutIndicator();
+        indicator.setPriorMove(new BigDecimal("80"));
+        indicator.setPriorMoveLong(new BigDecimal("40"));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(priceWithClose("300")));
+        when(indicatorRepository.findTop1ByStockOrderByDateDesc(stock)).thenReturn(Optional.of(indicator));
+        when(marketDataProvider.fetchIntradaySnapshot("AAPL"))
+                .thenReturn(new IntradaySnapshot("AAPL", LocalDate.now(),
+                        new BigDecimal("336"), new BigDecimal("340"),
+                        new BigDecimal("334"), 5_000_000L));
+        when(calculator.calculateGap(any(), any())).thenReturn(new BigDecimal("12"));
+        when(calculator.calculateRelativeVolume(anyLong(), anyLong())).thenReturn(new BigDecimal("1.5"));
+
+        scanService.scanStockForEpisodicPivot(stock);
+
+        verify(scanResultRepository).save(any(ScanResult.class));
     }
 
     @Test
