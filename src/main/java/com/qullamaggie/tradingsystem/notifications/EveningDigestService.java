@@ -6,11 +6,17 @@ import com.qullamaggie.tradingsystem.data.repository.PortfolioAlertRepository;
 import com.qullamaggie.tradingsystem.data.repository.PositionAlertRepository;
 import com.qullamaggie.tradingsystem.market.service.MarketRegimeService;
 import com.qullamaggie.tradingsystem.notifications.EveningDigest.*;
+import com.qullamaggie.tradingsystem.scanner.WatchlistCandidate;
+import com.qullamaggie.tradingsystem.scanner.service.WatchlistService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Sends the evening summary after the pipeline: every alert not yet
@@ -27,6 +33,7 @@ import java.util.List;
  */
 @Service
 public class EveningDigestService {
+    private static final Logger log = LoggerFactory.getLogger(EveningDigestService.class);
 
     private final AlertRepository alertRepository;
     private final PositionAlertRepository positionAlertRepository;
@@ -35,6 +42,7 @@ public class EveningDigestService {
     private final NotificationDataLoader loader;
     private final EveningDigestFormatter formatter;
     private final NotificationService notificationService;
+    private final WatchlistService watchlistService;
 
     public EveningDigestService(AlertRepository alertRepository,
                                 PositionAlertRepository positionAlertRepository,
@@ -42,7 +50,7 @@ public class EveningDigestService {
                                 MarketRegimeService marketRegimeService,
                                 NotificationDataLoader loader,
                                 EveningDigestFormatter formatter,
-                                NotificationService notificationService) {
+                                NotificationService notificationService, WatchlistService watchlistService) {
         this.alertRepository = alertRepository;
         this.positionAlertRepository = positionAlertRepository;
         this.portfolioAlertRepository = portfolioAlertRepository;
@@ -50,6 +58,7 @@ public class EveningDigestService {
         this.loader = loader;
         this.formatter = formatter;
         this.notificationService = notificationService;
+        this.watchlistService = watchlistService;
     }
 
     /**
@@ -95,13 +104,27 @@ public class EveningDigestService {
                 .map(loader::toOvernightWarning)
                 .toList();
 
+        // Aktier med köpsignal i kväll ska inte stå på listan också
+        Set<String> signalSymbols = buySignals.stream()
+                .map(BuySignal::symbol)
+                .collect(Collectors.toSet());
+
+        List<WatchlistCandidate> watchlist;
+        try {
+            watchlist = watchlistService.findTopCandidates(signalSymbols);
+        } catch (Exception e) {
+            log.warn("Kunde inte ta fram bevakningslistan: {}", e.getMessage());
+            watchlist = List.of();
+        }
+
         EveningDigest digest = new EveningDigest(today,
                 marketRegimeService.getLatest().map(MarketRegime::getStatus).orElse(null),
                 loader.marketRegime().regimeMode(),
                 loader.indexReadings(),
                 loader.account(),
                 loader.sellRules(),
-                unhandled, buySignals, positionWarnings, overnightWarnings);
+                unhandled, buySignals, positionWarnings, overnightWarnings,
+                watchlist, loader.breakoutRules());
 
         boolean sent = notificationService.send(formatter.format(digest));
 

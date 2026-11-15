@@ -1,15 +1,16 @@
 package com.qullamaggie.tradingsystem.notifications;
 
 import com.qullamaggie.tradingsystem.alerts.AccountConfig;
-import com.qullamaggie.tradingsystem.data.entity.PositionAlertType;
-import com.qullamaggie.tradingsystem.data.entity.RegimeStatus;
-import com.qullamaggie.tradingsystem.data.entity.SetupType;
-import com.qullamaggie.tradingsystem.data.entity.TransactionType;
+import com.qullamaggie.tradingsystem.data.entity.*;
 import com.qullamaggie.tradingsystem.market.RegimeMode;
 import com.qullamaggie.tradingsystem.notifications.EmailDocument.*;
 import com.qullamaggie.tradingsystem.notifications.EveningDigest.*;
 import com.qullamaggie.tradingsystem.portfolio.PositionSummary;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleConfig;
+import com.qullamaggie.tradingsystem.scanner.BreakoutCriterion;
+import com.qullamaggie.tradingsystem.scanner.BreakoutEvaluation;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
+import com.qullamaggie.tradingsystem.scanner.WatchlistCandidate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -19,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.qullamaggie.tradingsystem.data.entity.RegimeStatus.RISK_ON;
 import static com.qullamaggie.tradingsystem.notifications.Format.*;
 
 /**
@@ -96,6 +98,9 @@ public class EveningDigestFormatter {
                 ? List.<Block>of(new Paragraph("Inget att köpa eller sälja i kväll."))
                 : actions));
         sections.add(new Section("Marknaden", List.of(new Paragraph(marketText(digest.regimeStatus())))));
+        if (!digest.watchlist().isEmpty()) {
+            sections.add(new Section("Bevakningslista: potentiella breakouts", watchlistBlocks(digest)));
+        }
         sections.add(new Section("Så har systemet räknat", calculations));
         if (!commands.isEmpty()) {
             sections.add(new Section("Registrera i systemet", commands));
@@ -378,7 +383,7 @@ public class EveningDigestFormatter {
         if (status == null) {
             return "Marknadsläget är inte bedömt än.";
         }
-        return status == RegimeStatus.RISK_ON
+        return status == RISK_ON
                 ? "Marknaden går uppåt. Systemet letar efter nya köplägen."
                 : "Marknaden går nedåt. Systemet letar inte efter nya breakouts, men bevakar dina positioner.";
     }
@@ -460,5 +465,93 @@ public class EveningDigestFormatter {
 
     private static String capitalize(String text) {
         return Character.toUpperCase(text.charAt(0)) + text.substring(1);
+    }
+
+    private List<Block> watchlistBlocks(EveningDigest digest) {
+        List<Block> blocks = new ArrayList<>();
+        blocks.add(new Paragraph("Inga köpsignaler. Aktier som klarar de flesta villkoren för en breakout, "
+                + "de mest kompletta först."));
+
+        // Björnmarknad: förklara varför det inte blir några köpsignaler
+        if (digest.regimeStatus() != RegimeStatus.RISK_ON) {
+            blocks.add(new Paragraph("Marknaden går nedåt. Enligt Kullamägi köps inga breakouts i ett sådant läge, "
+                    + "därför ger systemet inga köpsignaler just nu. Listan visar vad som byggs upp – "
+                    + "köper du ändå går du emot metoden."));
+        }
+
+        // Ett block per aktie
+        for (WatchlistCandidate candidate : digest.watchlist()) {
+            blocks.add(watchlistItem(candidate, digest.breakoutRules()));
+        }
+        return blocks;
+    }
+
+    Bullets watchlistItem(WatchlistCandidate candidate, BreakoutScanConfig rules) {
+        BreakoutEvaluation evaluation = candidate.evaluation();
+        Indicator indicator = candidate.indicator();
+
+        // Dela upp de sju kriterierna i klarade och missade
+        List<String> passed = new ArrayList<>();
+        List<String> failed = new ArrayList<>();
+        for (BreakoutCriterion criterion : BreakoutCriterion.values()) {
+            if (evaluation.failed().contains(criterion)) {
+                failed.add("✗ " + failedText(criterion, indicator, rules));
+            } else {
+                passed.add("✓ " + passedText(criterion, indicator));
+            }
+        }
+
+        // Raderna i ordning: avstånd, alla ✓ på en rad, varje ✗ på egen rad
+        List<String> lines = new ArrayList<>();
+        lines.add(distanceText(candidate));
+        if (!passed.isEmpty()) {
+            lines.add(String.join(" · ", passed));
+        }
+        lines.addAll(failed);
+
+        String title = candidate.stock().getSymbol() + " – " + evaluation.passedCount() + " av "
+                + BreakoutCriterion.values().length + " kriterier uppfyllda";
+        return new Bullets(title, lines);
+    }
+
+    /** Short text for a criterion the stock passed, e.g. "Tidigare rörelse 45 %". */
+    private static String passedText(BreakoutCriterion criterion, Indicator indicator) {
+        return switch (criterion) {
+            case PRIOR_MOVE -> "Tidigare rörelse " + whole(indicator.getPriorMove()) + " %";
+            case AVG_VOLUME -> "Volym";
+            case ADR -> "ADR " + oneDecimal(indicator.getAdr20()) + " %";
+            case CLOSED_ABOVE_SHORT_MA -> "Stängde över MA10 eller MA20";
+            case CONSOLIDATION_RANGE -> "Tight konsolidering";
+            case PULLBACK -> "Grund rekyl";
+            case VOLUME_CONTRACTION -> "Volymen har krympt";
+        };
+    }
+
+    /** What is missing and by how much, e.g. "Volymen har inte krympt (0,90, gräns 0,80)". */
+    private static String failedText(BreakoutCriterion criterion, Indicator indicator, BreakoutScanConfig rules) {
+        return switch (criterion) {
+            case PRIOR_MOVE -> "Tidigare rörelse " + whole(indicator.getPriorMove()) + " % (ska vara "
+                    + number(rules.minPriorMove()) + "–" + number(rules.maxPriorMove()) + " %)";
+            case AVG_VOLUME -> "För låg volym (" + whole(indicator.getVolumeAvg20()) + " aktier/dag, minst "
+                    + whole(rules.minAvgVolume()) + ")";
+            case ADR -> "För låg ADR (" + oneDecimal(indicator.getAdr20()) + " %, minst "
+                    + number(rules.minAdr()) + " %)";
+            case CLOSED_ABOVE_SHORT_MA -> "Stängde under både MA10 och MA20";
+            case CONSOLIDATION_RANGE -> "För bred konsolidering (" + oneDecimal(indicator.getConsolidationRange())
+                    + " %, max " + number(rules.maxConsolidationRange()) + " %)";
+            case PULLBACK -> "För djup rekyl (" + oneDecimal(indicator.getPullback()) + " %, max "
+                    + number(rules.maxPullback()) + " %)";
+            case VOLUME_CONTRACTION -> "Volymen har inte krympt (" + price(indicator.getVolumeContraction())
+                    + ", gräns " + price(rules.maxVolumeContraction()) + ")";
+        };
+    }
+
+    /** "3,0 % under breakout-nivån 142,50 $", or "över" when it has already closed above. */
+    private static String distanceText(WatchlistCandidate candidate) {
+        BigDecimal distance = candidate.distanceToBreakoutPercent();
+        String level = price(candidate.indicator().getConsolidationHigh()) + " $";
+        return distance.signum() >= 0
+                ? oneDecimal(distance) + " % under breakout-nivån " + level
+                : oneDecimal(distance.abs()) + " % över breakout-nivån " + level;
     }
 }

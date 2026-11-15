@@ -7,6 +7,8 @@ import com.qullamaggie.tradingsystem.data.entity.SetupType;
 import com.qullamaggie.tradingsystem.market.RegimeMode;
 import com.qullamaggie.tradingsystem.portfolio.PositionSummary;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleConfig;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
+import com.qullamaggie.tradingsystem.scanner.WatchlistCandidate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,7 +35,9 @@ public record EveningDigest(
         List<UnhandledStopBreach> unhandledStopBreaches,
         List<BuySignal> buySignals,
         List<PositionWarning> positionWarnings,
-        List<OvernightWarning> overnightWarnings
+        List<OvernightWarning> overnightWarnings,
+        List<WatchlistCandidate> watchlist,
+        BreakoutScanConfig breakoutRules
 ) {
     /** True if anything in the email asks the user to do something. */
     public boolean hasActions() {

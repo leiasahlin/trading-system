@@ -9,6 +9,7 @@ import com.qullamaggie.tradingsystem.notifications.EveningDigest.*;
 import com.qullamaggie.tradingsystem.portfolio.PositionSummary;
 import com.qullamaggie.tradingsystem.portfolio.SellRuleConfig;
 import com.qullamaggie.tradingsystem.portfolio.service.PositionSummaryProvider;
+import com.qullamaggie.tradingsystem.scanner.BreakoutScanConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -36,19 +37,21 @@ public class NotificationDataLoader {
     private final MarketRegimeConfig marketRegimeConfig;
     private final AccountConfig accountConfig;
     private final SellRuleConfig sellRuleConfig;
+    private final BreakoutScanConfig breakoutScanConfig;
 
     public NotificationDataLoader(IndicatorRepository indicatorRepository,
                                   StockRepository stockRepository,
                                   PositionSummaryProvider positionSummaryProvider,
                                   MarketRegimeConfig marketRegimeConfig,
                                   AccountConfig accountConfig,
-                                  SellRuleConfig sellRuleConfig) {
+                                  SellRuleConfig sellRuleConfig, BreakoutScanConfig breakoutScanConfig) {
         this.indicatorRepository = indicatorRepository;
         this.stockRepository = stockRepository;
         this.positionSummaryProvider = positionSummaryProvider;
         this.marketRegimeConfig = marketRegimeConfig;
         this.accountConfig = accountConfig;
         this.sellRuleConfig = sellRuleConfig;
+        this.breakoutScanConfig = breakoutScanConfig;
     }
 
     public AccountConfig account() {
@@ -58,6 +61,8 @@ public class NotificationDataLoader {
     public SellRuleConfig sellRules() {
         return sellRuleConfig;
     }
+
+    public BreakoutScanConfig breakoutRules() {return breakoutScanConfig;}
 
     public MarketRegimeConfig marketRegime() {
         return marketRegimeConfig;
