@@ -113,12 +113,15 @@ public class MarketDataService {
     public int refreshPrices(Stock stock) {
         Optional<DailyPrice> latestRow = dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock);
 
-        LocalDate startDate;
+        // New stock: fetch the whole history in one go
         if (latestRow.isEmpty()) {
-            startDate = config.historyStart();
-        } else {
-            startDate = latestRow.get().getDate().plusDays(1);
+            List<DailyPrice> history = fetchFullHistory(stock);
+            dailyPriceRepository.saveAll(history);
+            return history.size();
         }
+
+        // Existing stock: fetch only the days after the last stored date
+        LocalDate startDate = latestRow.get().getDate().plusDays(1);
 
         long daysToFetch = ChronoUnit.DAYS.between(startDate, LocalDate.now());
         if (daysToFetch <= 0) {
@@ -135,20 +138,37 @@ public class MarketDataService {
             }
         }
 
-        // Första hämtningen: hela historiken kommer ojusterad, så den rättas före save
-        if (latestRow.isEmpty()) {
-            newPrices.sort(Comparator.comparing(DailyPrice::getDate));
-            adjustForSplits(stock, newPrices);
-        }
-
         dailyPriceRepository.saveAll(newPrices);
 
-        // Löpande hämtning: en split syns som ett hopp mot senast sparade kurs,
+        // En split syns som ett hopp mot senast sparade kurs,
         // och då är det den befintliga historiken som behöver justeras
-        if (latestRow.isPresent() && !newPrices.isEmpty()) {
+        if (!newPrices.isEmpty()) {
             adjustStoredHistoryIfSplit(stock, latestRow.get(), newPrices);
         }
         return newPrices.size();
+    }
+
+    /**
+     * Fetches all prices from history-start up to today, split-adjusted and
+     * sorted oldest first. Nothing is saved.
+     */
+    private List<DailyPrice> fetchFullHistory(Stock stock) {
+        LocalDate startDate = config.historyStart();
+        long daysToFetch = ChronoUnit.DAYS.between(startDate, LocalDate.now());
+
+        List<DailyPrice> prices = marketDataProvider.fetchDailyPrices(stock.getSymbol(), (int) daysToFetch);
+        List<DailyPrice> history = new ArrayList<>();
+
+        for (DailyPrice price : prices) {
+            if (!price.getDate().isBefore(startDate)) {
+                price.setStock(stock);
+                history.add(price);
+            }
+        }
+
+        history.sort(Comparator.comparing(DailyPrice::getDate));
+        adjustForSplits(stock, history);
+        return history;
     }
 
     private void adjustForSplits(Stock stock, List<DailyPrice> prices) {

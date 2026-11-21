@@ -122,4 +122,22 @@ public class MarketDataServiceTest {
         verify(marketDataProvider, never()).fetchDailyPrices(any(), anyInt());
         verify(dailyPriceRepository, never()).saveAll(anyList());
     }
+
+    @Test
+    public void shouldHandleNoNewPricesOnMarketHoliday() {
+        // Last stored day is yesterday, but the market was closed today
+        DailyPrice existingPrice = new DailyPrice();
+        existingPrice.setDate(LocalDate.now().minusDays(2));
+        existingPrice.setClose(new BigDecimal("100"));
+        when(dailyPriceRepository.findTop1ByStockOrderByDateDesc(stock))
+                .thenReturn(Optional.of(existingPrice));
+        when(marketDataProvider.fetchDailyPrices(eq("AAPL"), anyInt()))
+                .thenReturn(List.of());
+
+        int saved = marketDataService.refreshPrices(stock);
+
+        assertEquals(0, saved);
+        // No split check without a new day to compare against
+        verify(marketDataProvider, never()).fetchSplits(any());
+    }
 }
