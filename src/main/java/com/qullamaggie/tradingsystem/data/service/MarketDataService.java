@@ -1,5 +1,6 @@
 package com.qullamaggie.tradingsystem.data.service;
 
+import com.qullamaggie.tradingsystem.data.MarketDataConfig;
 import com.qullamaggie.tradingsystem.data.dto.RefreshSummary;
 import com.qullamaggie.tradingsystem.data.dto.StockSplit;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
@@ -27,15 +28,17 @@ public class MarketDataService {
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private final SplitAdjuster splitAdjuster;
     private static final int MAX_REFRESH_FAILURES = 3;
+    private final MarketDataConfig config;
 
 
     public MarketDataService(MarketDataProvider marketDataProvider,
                              StockRepository stockRepository,
-                             DailyPriceRepository dailyPriceRepository, SplitAdjuster splitAdjuster) {
+                             DailyPriceRepository dailyPriceRepository, SplitAdjuster splitAdjuster, MarketDataConfig config) {
         this.marketDataProvider = marketDataProvider;
         this.stockRepository = stockRepository;
         this.dailyPriceRepository = dailyPriceRepository;
         this.splitAdjuster = splitAdjuster;
+        this.config = config;
     }
 
     /**
@@ -102,7 +105,7 @@ public class MarketDataService {
     /**
      * Refreshes price data for a single stock.
      * fetches only the days missing sine the last stored date.
-     * If no data exists for the stock, fetches one year of history
+     * If no data exists for the stock, fetches history from 2019 and forward.
      * to ensure sufficient data for indicator calculations (MA, ADR, prior move).
      *
      * @param stock the stock to refresh
@@ -112,7 +115,7 @@ public class MarketDataService {
 
         LocalDate startDate;
         if (latestRow.isEmpty()) {
-            startDate = LocalDate.now().minusYears(1);
+            startDate = config.historyStart();
         } else {
             startDate = latestRow.get().getDate().plusDays(1);
         }
