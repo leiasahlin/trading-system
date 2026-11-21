@@ -13,11 +13,9 @@ import com.qullamaggie.tradingsystem.indicators.PhaseDetector;
 import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +34,8 @@ public class IndicatorService {
     public IndicatorService(DailyPriceRepository dailyPriceRepository,
                             IndicatorRepository indicatorRepository,
                             IndicatorCalculator indicatorCalculator,
-                            StockRepository stockRepository, PhaseDetector phaseDetector, EpisodicPivotScanConfig episodicPivotScanConfig) {
+                            StockRepository stockRepository, PhaseDetector phaseDetector,
+                            EpisodicPivotScanConfig episodicPivotScanConfig) {
         this.dailyPriceRepository = dailyPriceRepository;
         this.indicatorRepository = indicatorRepository;
         this.calculator = indicatorCalculator;
@@ -57,6 +56,21 @@ public class IndicatorService {
         // reverse to oldest-first so ADR/ATR can use the previous day's close
         Collections.reverse(prices);
 
+        Indicator calculated = calculateIndicators(prices);
+        calculated.setStock(stock);
+
+        // Reuse the existing row's id for this date, so save() updates instead of inserting
+        indicatorRepository.findByStockAndDate(stock, calculated.getDate())
+                .ifPresent(existing -> calculated.setId(existing.getId()));
+
+        indicatorRepository.save(calculated);
+    }
+
+    /**
+     * Ren beräkning, ingen databas. Förutsätter oldest-first och minst 70 rader.
+     * Sista elementet i listan är dagen indikatorn gäller.
+     */
+    public Indicator calculateIndicators(List<DailyPrice> prices) {
         // EMA uses the full history: it's seeded with an SMA over the first `period`
         // closes and then applied forward, so a longer series converges better
         List<BigDecimal> allCloses = prices.stream().map(DailyPrice::getClose).toList();
@@ -111,19 +125,9 @@ public class IndicatorService {
             volumeContraction = calculator.calculateVolumeContraction(phases.flag(), phases.flagpole());
         }
 
-        LocalDate date = prices.getLast().getDate();
-
-        // Reuse the existing indicator row for this date if it exists, otherwise
-        // create a new one
-        Indicator indicator = indicatorRepository.findByStockAndDate(stock, date)
-                .orElseGet(() -> {
-                    Indicator newIndicator = new Indicator();
-                    newIndicator.setStock(stock);
-                    newIndicator.setDate(date);
-                    return newIndicator;
-                        });
-
-        // Fill in all calculated values and persist
+        // Fill in all calculated values (nothing is saved here)
+        Indicator indicator = new Indicator();
+        indicator.setDate(today.getDate());
         indicator.setMa10(ma10);
         indicator.setMa20(ma20);
         indicator.setMa50(ma50);
@@ -141,7 +145,7 @@ public class IndicatorService {
         indicator.setRelativeVolume(relativeVolume);
         indicator.setPullback(pullback);
         indicator.setVolumeContraction(volumeContraction);
-        indicatorRepository.save(indicator);
+        return indicator;
     }
 
     public void calculateForAllStocks() {
@@ -159,12 +163,5 @@ public class IndicatorService {
             return prices;
         }
         return prices.subList(prices.size() - n, prices.size());
-    }
-
-    private List<DailyPrice> allExceptLastN(List<DailyPrice> prices, int n) {
-        if (n >= prices.size()) {
-            return List.of();
-        }
-        return prices.subList(0, prices.size() - n);
     }
 }

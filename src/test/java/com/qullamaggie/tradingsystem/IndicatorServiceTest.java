@@ -14,6 +14,7 @@ import com.qullamaggie.tradingsystem.scanner.EpisodicPivotScanConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -23,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -83,6 +86,7 @@ public class IndicatorServiceTest {
     @Test
     public void shouldReuseExistingIndicatorRow() {
         Indicator existing = new Indicator();
+        existing.setId(42L);
         existing.setStock(stock);
 
         when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
@@ -92,7 +96,72 @@ public class IndicatorServiceTest {
 
         indicatorService.calculateAndSaveIndicators(stock);
 
-        verify(indicatorRepository).save(existing);
+        // A new object is saved, but with the existing row's id, so save() updates
+        ArgumentCaptor<Indicator> saved = ArgumentCaptor.forClass(Indicator.class);
+        verify(indicatorRepository).save(saved.capture());
+        assertEquals(42L, saved.getValue().getId());
+    }
+
+    @Test
+    public void shouldSaveNewRowWithoutIdWhenNoneExists() {
+        when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
+                .thenReturn(buildPrices(80));
+        when(indicatorRepository.findByStockAndDate(eq(stock), any()))
+                .thenReturn(Optional.empty());
+
+        indicatorService.calculateAndSaveIndicators(stock);
+
+        ArgumentCaptor<Indicator> saved = ArgumentCaptor.forClass(Indicator.class);
+        verify(indicatorRepository).save(saved.capture());
+        assertNull(saved.getValue().getId());
+        assertEquals(stock, saved.getValue().getStock());
+    }
+
+    @Test
+    public void shouldLookUpExistingRowByNewestPriceDate() {
+        List<DailyPrice> newestFirst = buildPrices(80);
+        LocalDate newestDate = newestFirst.getFirst().getDate();
+
+        when(dailyPriceRepository.findByStockOrderByDateDesc(stock))
+                .thenReturn(newestFirst);
+        when(indicatorRepository.findByStockAndDate(eq(stock), any()))
+                .thenReturn(Optional.empty());
+
+        indicatorService.calculateAndSaveIndicators(stock);
+
+        verify(indicatorRepository).findByStockAndDate(stock, newestDate);
+    }
+
+    @Test
+    public void calculateIndicatorsShouldSetDateToLastPriceInList() {
+        List<DailyPrice> oldestFirst = buildPrices(80).reversed();
+
+        Indicator result = indicatorService.calculateIndicators(oldestFirst);
+
+        assertEquals(oldestFirst.getLast().getDate(), result.getDate());
+    }
+
+    @Test
+    public void calculateIndicatorsShouldOnlyUseDataUpToLastPrice() {
+        // The backtest passes a sublist ending at a historical day. The result
+        // must belong to that day, not to the newest day in the full history.
+        List<DailyPrice> oldestFirst = buildPrices(80).reversed();
+        List<DailyPrice> upToDay70 = oldestFirst.subList(0, 70);
+
+        Indicator result = indicatorService.calculateIndicators(upToDay70);
+
+        assertEquals(oldestFirst.get(69).getDate(), result.getDate());
+    }
+
+    @Test
+    public void calculateIndicatorsShouldNotTouchRepositories() {
+        List<DailyPrice> oldestFirst = buildPrices(80).reversed();
+
+        Indicator result = indicatorService.calculateIndicators(oldestFirst);
+
+        assertNull(result.getId());
+        assertNull(result.getStock());
+        verifyNoInteractions(indicatorRepository, dailyPriceRepository, stockRepository);
     }
 
     /**
