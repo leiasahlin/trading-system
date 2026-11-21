@@ -85,6 +85,29 @@ public class MarketDataService {
     }
 
     /**
+     * Re-fetches the full history for every stock, including inactive ones and
+     * indexes. Meant to be run once after history-start is moved back.
+     * A stock that fails keeps its old history.
+     */
+    public RefreshSummary reseedAllStocks() {
+        List<Stock> stocks = stockRepository.findAll();
+        int sum = 0;
+        int processed = 0;
+
+        for (Stock stock : stocks) {
+            try {
+                sum += reseedHistory(stock);
+            } catch (Exception e) {
+                log.warn("Kunde inte hämta om historik för {}: {}", stock.getSymbol(), e.getMessage());
+            }
+            if (++processed % 50 == 0) {
+                log.info("Omhämtning av historik: {}/{}", processed, stocks.size());
+            }
+        }
+        return new RefreshSummary(stocks.size(), sum);
+    }
+
+    /**
      * Counts consecutive "unknown symbol" answers. After MAX_REFRESH_FAILURES
      * in a row the stock is deactivated so it is no longer fetched or traded.
      */

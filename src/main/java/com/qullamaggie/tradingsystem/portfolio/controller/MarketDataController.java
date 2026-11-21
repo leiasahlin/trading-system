@@ -25,4 +25,13 @@ public class MarketDataController {
     public RefreshSummary refreshAll() {
         return marketDataService.refreshAllStocks();
     }
+
+    /**
+     * Re-fetches the full price history for every stock from history-start.
+     * Run once after history-start is moved back. Takes a while.
+     */
+    @PostMapping("/reseed")
+    public RefreshSummary reseedAll() {
+        return marketDataService.reseedAllStocks();
+    }
 }

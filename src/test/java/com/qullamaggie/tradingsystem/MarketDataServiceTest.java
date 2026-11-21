@@ -1,6 +1,7 @@
 package com.qullamaggie.tradingsystem;
 
 import com.qullamaggie.tradingsystem.data.MarketDataConfig;
+import com.qullamaggie.tradingsystem.data.dto.RefreshSummary;
 import com.qullamaggie.tradingsystem.data.entity.DailyPrice;
 import com.qullamaggie.tradingsystem.data.entity.Stock;
 import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
@@ -16,6 +17,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -191,5 +195,29 @@ public class MarketDataServiceTest {
             prices.add(p);
         }
         return prices;
+    }
+
+    @Test
+    public void reseedAllShouldContinueWhenOneStockFails() {
+        Stock broken = new Stock();
+        broken.setSymbol("GONE");
+        when(stockRepository.findAll()).thenReturn(List.of(broken, stock));
+
+        // GONE is delisted and Twelve Data answers 404
+        when(marketDataProvider.fetchDailyPrices(eq("GONE"), anyInt()))
+                .thenThrow(HttpClientErrorException.create(
+                        HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, null, null));
+
+        when(marketDataProvider.fetchDailyPrices(eq("AAPL"), anyInt()))
+                .thenReturn(pricesFrom(LocalDate.of(2019, 12, 2), 1750));
+        when(dailyPriceRepository.countByStock(stock)).thenReturn(250L);
+
+        RefreshSummary summary = marketDataService.reseedAllStocks();
+
+        assertEquals(2, summary.stocksProcessed());
+        assertEquals(1750, summary.rowsFetched());
+        // The failing stock never reaches the writer, so its old history stays
+        verify(priceHistoryWriter, never()).replaceHistory(eq(broken), anyList());
+        verify(priceHistoryWriter).replaceHistory(eq(stock), anyList());
     }
 }
