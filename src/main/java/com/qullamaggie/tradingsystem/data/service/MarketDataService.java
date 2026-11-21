@@ -29,16 +29,18 @@ public class MarketDataService {
     private final SplitAdjuster splitAdjuster;
     private static final int MAX_REFRESH_FAILURES = 3;
     private final MarketDataConfig config;
+    private final PriceHistoryWriter priceHistoryWriter;
 
 
     public MarketDataService(MarketDataProvider marketDataProvider,
                              StockRepository stockRepository,
-                             DailyPriceRepository dailyPriceRepository, SplitAdjuster splitAdjuster, MarketDataConfig config) {
+                             DailyPriceRepository dailyPriceRepository, SplitAdjuster splitAdjuster, MarketDataConfig config, PriceHistoryWriter priceHistoryWriter) {
         this.marketDataProvider = marketDataProvider;
         this.stockRepository = stockRepository;
         this.dailyPriceRepository = dailyPriceRepository;
         this.splitAdjuster = splitAdjuster;
         this.config = config;
+        this.priceHistoryWriter = priceHistoryWriter;
     }
 
     /**
@@ -169,6 +171,27 @@ public class MarketDataService {
         history.sort(Comparator.comparing(DailyPrice::getDate));
         adjustForSplits(stock, history);
         return history;
+    }
+
+    /**
+     * Replaces the stored history with a fresh fetch from history-start.
+     * The old history is kept if the new one is empty or shorter.
+     *
+     * @return number of rows saved, or 0 if the old history was kept
+     */
+    public int reseedHistory(Stock stock) {
+        List<DailyPrice> history = fetchFullHistory(stock);
+        long existing = dailyPriceRepository.countByStock(stock);
+
+        if (history.size() < existing) {
+            log.warn("{}: ny historik ({} rader) är kortare än sparad ({}), behåller den gamla",
+                    stock.getSymbol(), history.size(), existing);
+            return 0;
+        }
+
+        int deleted = priceHistoryWriter.replaceHistory(stock, history);
+        log.info("{}: ersatte {} rader med {}", stock.getSymbol(), deleted, history.size());
+        return history.size();
     }
 
     private void adjustForSplits(Stock stock, List<DailyPrice> prices) {

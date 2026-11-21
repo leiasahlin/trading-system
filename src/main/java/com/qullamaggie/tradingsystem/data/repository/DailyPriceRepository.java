@@ -20,4 +20,5 @@ public interface DailyPriceRepository extends JpaRepository<DailyPrice, Long> {
     @Modifying
     @Query("delete from DailyPrice p where p.stock = :stock")
     int deleteByStock(@Param("stock") Stock stock);
+    long countByStock(Stock stock);
 }

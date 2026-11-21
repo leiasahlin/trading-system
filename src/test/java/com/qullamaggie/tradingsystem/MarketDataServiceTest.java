@@ -7,6 +7,7 @@ import com.qullamaggie.tradingsystem.data.provider.MarketDataProvider;
 import com.qullamaggie.tradingsystem.data.repository.DailyPriceRepository;
 import com.qullamaggie.tradingsystem.data.repository.StockRepository;
 import com.qullamaggie.tradingsystem.data.service.MarketDataService;
+import com.qullamaggie.tradingsystem.data.service.PriceHistoryWriter;
 import com.qullamaggie.tradingsystem.data.service.SplitAdjuster;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +34,7 @@ public class MarketDataServiceTest {
     @Mock private MarketDataProvider marketDataProvider;
     @Mock private StockRepository stockRepository;
     @Mock private DailyPriceRepository dailyPriceRepository;
+    @Mock private PriceHistoryWriter priceHistoryWriter;
 
     private MarketDataService marketDataService;
     private Stock stock;
@@ -40,7 +43,8 @@ public class MarketDataServiceTest {
     void setUp() {
         marketDataService = new MarketDataService(
                 marketDataProvider, stockRepository, dailyPriceRepository, new SplitAdjuster(),
-                new MarketDataConfig(LocalDate.of(2019, 12, 1)));
+                new MarketDataConfig(LocalDate.of(2019, 12, 1)),
+                priceHistoryWriter);
 
         stock = new Stock();
         stock.setSymbol("AAPL");
@@ -139,5 +143,53 @@ public class MarketDataServiceTest {
         assertEquals(0, saved);
         // No split check without a new day to compare against
         verify(marketDataProvider, never()).fetchSplits(any());
+    }
+
+    @Test
+    public void reseedShouldReplaceHistoryWhenNewIsLonger() {
+        List<DailyPrice> fetched = pricesFrom(LocalDate.of(2019, 12, 2), 1750);
+        when(marketDataProvider.fetchDailyPrices(eq("AAPL"), anyInt())).thenReturn(fetched);
+        when(dailyPriceRepository.countByStock(stock)).thenReturn(250L);
+        when(priceHistoryWriter.replaceHistory(eq(stock), anyList())).thenReturn(250);
+
+        int saved = marketDataService.reseedHistory(stock);
+
+        assertEquals(1750, saved);
+        verify(priceHistoryWriter).replaceHistory(eq(stock), argThat(list -> list.size() == 1750));
+    }
+
+    @Test
+    public void reseedShouldKeepOldHistoryWhenNewIsShorter() {
+        List<DailyPrice> fetched = pricesFrom(LocalDate.now().minusDays(30), 30);
+        when(marketDataProvider.fetchDailyPrices(eq("AAPL"), anyInt())).thenReturn(fetched);
+        when(dailyPriceRepository.countByStock(stock)).thenReturn(250L);
+
+        int saved = marketDataService.reseedHistory(stock);
+
+        assertEquals(0, saved);
+        verify(priceHistoryWriter, never()).replaceHistory(any(), anyList());
+    }
+
+    @Test
+    public void reseedShouldKeepOldHistoryWhenFetchReturnsNothing() {
+        when(marketDataProvider.fetchDailyPrices(eq("AAPL"), anyInt())).thenReturn(List.of());
+        when(dailyPriceRepository.countByStock(stock)).thenReturn(250L);
+
+        int saved = marketDataService.reseedHistory(stock);
+
+        assertEquals(0, saved);
+        verify(priceHistoryWriter, never()).replaceHistory(any(), anyList());
+    }
+
+    /** Builds consecutive daily prices, oldest first, with a flat close of 10. */
+    private List<DailyPrice> pricesFrom(LocalDate start, int count) {
+        List<DailyPrice> prices = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            DailyPrice p = new DailyPrice();
+            p.setDate(start.plusDays(i));
+            p.setClose(BigDecimal.TEN);
+            prices.add(p);
+        }
+        return prices;
     }
 }
