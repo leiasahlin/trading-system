@@ -28,16 +28,16 @@ public class DailyPrice {
     @JoinColumn(name = "stock_id")
     private Stock stock;
 
-    @Column(nullable = false, precision = 12, scale = 4)
+    @Column(nullable = false, precision = 20, scale = 4)
     private BigDecimal open;
 
-    @Column(nullable = false, precision = 12, scale = 4)
+    @Column(nullable = false, precision = 20, scale = 4)
     private BigDecimal high;
 
-    @Column(nullable = false, precision = 12, scale = 4)
+    @Column(nullable = false, precision = 20, scale = 4)
     private BigDecimal low;
 
-    @Column(nullable = false, precision = 12, scale = 4)
+    @Column(nullable = false, precision = 20, scale = 4)
     private BigDecimal close;
 
     @Column(nullable = false)
