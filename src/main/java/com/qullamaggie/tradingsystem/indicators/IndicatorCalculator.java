@@ -193,7 +193,8 @@ public class IndicatorCalculator {
 
         for (int i = period; i < closes.size(); i++) {
             BigDecimal close = closes.get(i);
-            ema = close.subtract(ema).multiply(multiplier).add(ema);
+            ema = close.subtract(ema).multiply(multiplier).add(ema)
+                    .setScale(8, RoundingMode.HALF_UP);
         }
 
         return ema;
